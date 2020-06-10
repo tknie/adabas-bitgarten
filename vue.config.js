@@ -1,10 +1,10 @@
 // vue.config.js
 module.exports = {
-    // options...
-    devServer: {
-      disableHostCheck: true
+  // options...
+  devServer: {
+    disableHostCheck: true
   },
-     publicPath: process.env.NODE_ENV === 'production'
-   ? '/app'
-   : '/'
+  publicPath: process.env.NODE_ENV === 'production' ?
+    '/app' :
+    '/'
 }
