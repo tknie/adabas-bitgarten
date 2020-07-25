@@ -102,12 +102,14 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 
 	suffix := fileName[strings.LastIndex(fileName, ".")+1:]
 	switch suffix {
-	case "jpg", "jpeg":
+	case "jpg", "jpeg", "gif":
 		p.MetaData.MIMEType = "image/" + suffix
+		fmt.Println("Len", len(p.Data.Media))
 		terr := p.CreateThumbnail()
 		if terr != nil {
 			return terr
 		}
+		fmt.Println("Len", len(p.Data.Media))
 		if p.MetaData.Height > p.MetaData.Width {
 			p.MetaData.Fill = "1"
 		} else {

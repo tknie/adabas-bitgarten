@@ -71,6 +71,7 @@ func (pic *PictureBinary) LoadFile() error {
 	}
 	pic.Data.ChecksumPicture = createMd5(pic.Data.Media)
 	adatypes.Central.Log.Debugf("PictureBinary checksum", pic.Data.ChecksumPicture)
+	fmt.Println("PictureBinary checksum", pic.Data.ChecksumPicture, "size=", fi.Size(), len(pic.Data.Media))
 
 	return nil
 }
@@ -112,20 +113,22 @@ func resizePicture(media []byte, max int) ([]byte, uint32, uint32, error) {
 // CreateThumbnail create thumbnail
 func (pic *PictureBinary) CreateThumbnail() error {
 	if strings.HasPrefix(pic.MetaData.MIMEType, "image") {
-		thmb, w, h, err := resizePicture(pic.Data.Media, 1280)
-		if err != nil {
-			fmt.Println("Error generating thumbnail", err)
-			return err
-		}
-		pic.Data.Media = thmb
-		pic.MetaData.Width = w
-		pic.MetaData.Height = h
-		thmb, w, h, err = resizePicture(pic.Data.Media, 200)
+		// thmb, w, h, err := resizePicture(pic.Data.Media, 1280)
+		// if err != nil {
+		// 	fmt.Println("Error generating thumbnail", err)
+		// 	return err
+		// }
+		// pic.Data.Media = thmb
+		// pic.MetaData.Width = w
+		// pic.MetaData.Height = h
+		thmb, w, h, err := resizePicture(pic.Data.Media, 200)
 		if err != nil {
 			fmt.Println("Error generating thumbnail", err)
 			return err
 		}
 		pic.Data.Thumbnail = thmb
+		pic.MetaData.Width = w
+		pic.MetaData.Height = h
 		pic.Data.ChecksumThumbnail = createMd5(pic.Data.Thumbnail)
 		adatypes.Central.Log.Debugf("Thumbnail checksum", pic.Data.ChecksumThumbnail)
 	} else {

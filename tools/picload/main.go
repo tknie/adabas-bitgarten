@@ -183,12 +183,17 @@ func main() {
 			if info.IsDir() {
 				return nil
 			}
-			fmt.Println("Found picture file", path)
-			err = ps.LoadPicture(!update, path, a)
-			if err != nil {
-				adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
-				fmt.Println("Error loading picture:", err)
-				os.Exit(1)
+			suffix := path[strings.LastIndex(path, ".")+1:]
+			switch suffix {
+			case "jpg", "jpeg", "gif", "m4v", "mov":
+				fmt.Println("Checking picture file", path)
+				err = ps.LoadPicture(!update, path, a)
+				if err != nil {
+					adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
+					fmt.Println("Error loading picture:", err)
+					os.Exit(1)
+				}
+			default:
 			}
 			return nil
 		})
