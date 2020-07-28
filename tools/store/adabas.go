@@ -90,7 +90,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 		info = "Updating"
 	}
 	fmt.Printf("%s picture ... %s\n", info, fileName)
-	fmt.Println("-> load picture name ...", pictureName, "Md5=", pictureKey)
+	// fmt.Println("-> load picture name ...", pictureName, "Md5=", pictureKey)
 	var re = regexp.MustCompile(`(?m)([^/]*)/.*`)
 	d := re.FindStringSubmatch(pictureName)[1]
 	fmt.Println("Directory: ", d)
@@ -104,12 +104,10 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	switch suffix {
 	case "jpg", "jpeg", "gif":
 		p.MetaData.MIMEType = "image/" + suffix
-		fmt.Println("Len", len(p.Data.Media))
 		terr := p.CreateThumbnail()
 		if terr != nil {
 			return terr
 		}
-		fmt.Println("Len", len(p.Data.Media))
 		if p.MetaData.Height > p.MetaData.Width {
 			p.MetaData.Fill = "1"
 		} else {
@@ -124,33 +122,33 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	adatypes.Central.Log.Debugf("Done set value to Picture, searching ...")
 
 	if insert {
-		fmt.Println("Store record metadata ....", p.MetaData.Md5)
+		//fmt.Println("Store record metadata ....", p.MetaData.Md5)
 		err = ps.store.StoreData(p.MetaData)
 	} else {
-		fmt.Println("Update record ....", p.MetaData.Md5, "with ISN", p.MetaData.Index)
+		// fmt.Println("Update record ....", p.MetaData.Md5, "with ISN", p.MetaData.Index)
 		err = ps.store.UpdateData(p.MetaData)
 	}
-	fmt.Println("Stored metadata into ISN=", p.MetaData.Index)
+	// fmt.Println("Stored metadata into ISN=", p.MetaData.Index)
 	if err != nil {
 		fmt.Println("Error storing record metadata:", err)
 		return err
 	}
 	p.Data.Md5 = p.MetaData.Md5
 	p.Data.Index = p.MetaData.Index
-	fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
+	// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
 	err = ps.storeData.UpdateData(p.Data, true)
 	if err != nil {
 		fmt.Println("Error storing record data:", err)
 		return err
 	}
 	ps.conn.EndTransaction()
-	fmt.Println("Update record thumbnail ....", p.Data.Md5)
+	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
 	err = ps.storeThumb.UpdateData(p.Data)
 	if err != nil {
 		fmt.Printf("Store request error %v\n", err)
 		return err
 	}
-	fmt.Println("Updated record into ISN=", p.MetaData.Index)
+	fmt.Println("Updated record into ISN=", p.MetaData.Index, "MD5=", p.Data.Md5)
 	err = ps.store.EndTransaction()
 	if err != nil {
 		panic("End of transaction error: " + err.Error())

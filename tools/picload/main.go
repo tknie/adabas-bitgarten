@@ -159,7 +159,7 @@ func main() {
 			}
 			// fmt.Println("Check", path)
 			if strings.HasSuffix(strings.ToLower(path), "index.html") {
-				fmt.Println("Found index file", path)
+				//fmt.Println("Found index file", path)
 				return ps.LoadIndex(!update, path, a)
 			}
 			// if strings.HasSuffix(strings.ToLower(path), ".jpg") {
@@ -175,7 +175,7 @@ func main() {
 		if err != nil {
 			fmt.Println("Error walking path", err)
 		}
-		fmt.Println("End of lob load")
+		// fmt.Println("End of lob load")
 
 	}
 	if pictureDirectory != "" {
