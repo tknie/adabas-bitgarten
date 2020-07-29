@@ -191,7 +191,7 @@ func main() {
 				if err != nil {
 					adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
 					fmt.Println("Error loading picture:", err)
-					os.Exit(1)
+					// os.Exit(1)
 				}
 			default:
 			}

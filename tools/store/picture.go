@@ -83,7 +83,10 @@ func createMd5(input []byte) string {
 func resizePicture(media []byte, max int) ([]byte, uint32, uint32, error) {
 	var buffer bytes.Buffer
 	buffer.Write(media)
-	srcImage, _, _ := image.Decode(&buffer)
+	srcImage, _, err := image.Decode(&buffer)
+	if err != nil {
+		return nil, 0, 0, err
+	}
 	maxX := uint(0)
 	maxY := uint(0)
 	b := srcImage.Bounds()
@@ -102,7 +105,7 @@ func resizePicture(media []byte, max int) ([]byte, uint32, uint32, error) {
 	height = uint32(b.Max.Y)
 	//fmt.Println("New size: ", height, width)
 	buf := new(bytes.Buffer)
-	err := jpeg.Encode(buf, newImage, nil)
+	err = jpeg.Encode(buf, newImage, nil)
 	if err != nil {
 		fmt.Println("Error generating thumbnail", err)
 		return nil, 0, 0, err
