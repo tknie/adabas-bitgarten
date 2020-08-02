@@ -70,8 +70,7 @@ func (pic *PictureBinary) LoadFile() error {
 		return err
 	}
 	pic.Data.ChecksumPicture = createMd5(pic.Data.Media)
-	adatypes.Central.Log.Debugf("PictureBinary checksum", pic.Data.ChecksumPicture)
-	fmt.Println("PictureBinary checksum", pic.Data.ChecksumPicture, "size=", fi.Size(), len(pic.Data.Media))
+	adatypes.Central.Log.Debugf("PictureBinary checksum %s size=%d len=%d", pic.Data.ChecksumPicture, fi.Size(), len(pic.Data.Media))
 
 	return nil
 }
@@ -294,7 +293,7 @@ func loadMovie(fileName string, ada *adabas.Adabas) error {
 }
 
 func validateUsingMap(a *adabas.Adabas, isn adatypes.Isn) {
-	fmt.Println("Validate using Map and ISN=", isn)
+	adatypes.Central.Log.Debugf("Validate using Map and ISN=%d", isn)
 	mapRepository := adabas.NewMapRepository(a.URL, 4)
 	request, err := adabas.NewReadRequest("PictureBinary", a, mapRepository)
 	if err != nil {
@@ -405,4 +404,20 @@ func (pic *PictureBinary) sendBinary(mapName string, isPicture bool) *StoreRespo
 	s := &StoreResponse{}
 	json.Unmarshal(body, s)
 	return s
+}
+
+// DeleteIsn delete image Isn
+func (psx *PictureConnection) DeleteIsn(a *adabas.Adabas, isn adatypes.Isn) error {
+	fmt.Printf("Delete image with ISN=%d\n", isn)
+	deleteRequest, err := adabas.NewMapNameDeleteRequest(a, psx.store.MapName)
+	defer deleteRequest.BackoutTransaction()
+	if err != nil {
+		return err
+	}
+	err = deleteRequest.Delete(isn)
+	if err != nil {
+		return err
+	}
+	err = deleteRequest.EndTransaction()
+	return err
 }

@@ -103,8 +103,10 @@ func main() {
 	var pictureDirectory string
 	var dbidParameter string
 	var mapFnrParameter int
+	var deleteIsn int
 	var verify bool
 	var update bool
+	var shortenName bool
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
@@ -114,6 +116,8 @@ func main() {
 	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
 	flag.BoolVar(&verify, "v", false, "Verify data")
 	flag.BoolVar(&update, "u", false, "Update data")
+	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
+	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
 	flag.Parse()
 
 	if *cpuprofile != "" {
@@ -128,7 +132,7 @@ func main() {
 	}
 	defer writeMemProfile(*memprofile)
 
-	if !verify && (fileName == "" && pictureDirectory == "") {
+	if !verify && (fileName == "" && pictureDirectory == "" && deleteIsn == -1) {
 		fmt.Println("File name option is required")
 		flag.Usage()
 		return
@@ -145,12 +149,22 @@ func main() {
 	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
 	//adabas.DumpGlobalMapRepositories()
 
-	ps, perr := store.InitStorePictureBinary()
+	ps, perr := store.InitStorePictureBinary(!shortenName)
 	if perr != nil {
 		fmt.Println("Adabas connection error", perr)
 		return
 	}
 	defer ps.Close()
+
+	if deleteIsn > 0 {
+		err := ps.DeleteIsn(a, adatypes.Isn(deleteIsn))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error deleting Isn=%d: %v", deleteIsn, err)
+		} else {
+			fmt.Printf("Isn=%d successfull deleted ....\n", deleteIsn)
+		}
+		return
+	}
 
 	if fileName != "" {
 		err = filepath.Walk(fileName, func(path string, info os.FileInfo, err error) error {
@@ -184,13 +198,14 @@ func main() {
 				return nil
 			}
 			suffix := path[strings.LastIndex(path, ".")+1:]
+			suffix = strings.ToLower(suffix)
 			switch suffix {
 			case "jpg", "jpeg", "gif", "m4v", "mov":
-				fmt.Println("Checking picture file", path)
+				adatypes.Central.Log.Debugf("Checking picture file: %s", path)
 				err = ps.LoadPicture(!update, path, a)
 				if err != nil {
 					adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
-					fmt.Println("Error loading picture:", err)
+					fmt.Fprintln(os.Stderr, "Error loading picture:", err)
 					// os.Exit(1)
 				}
 			default:

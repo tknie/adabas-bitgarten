@@ -12,16 +12,17 @@ import (
 
 // PictureConnection picture connection handle
 type PictureConnection struct {
-	conn       *adabas.Connection
-	store      *adabas.StoreRequest
-	storeData  *adabas.StoreRequest
-	storeThumb *adabas.StoreRequest
-	readCheck  *adabas.ReadRequest
+	conn        *adabas.Connection
+	store       *adabas.StoreRequest
+	storeData   *adabas.StoreRequest
+	storeThumb  *adabas.StoreRequest
+	readCheck   *adabas.ReadRequest
+	ShortenName bool
 }
 
 // InitStorePictureBinary init store picture connection
-func InitStorePictureBinary() (ps *PictureConnection, err error) {
-	ps = &PictureConnection{}
+func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error) {
+	ps = &PictureConnection{ShortenName: shortenName}
 	ps.conn, err = adabas.NewConnection("acj;map")
 	if err != nil {
 		return nil, err
@@ -68,11 +69,14 @@ func InitStorePictureBinary() (ps *PictureConnection, err error) {
 
 func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adabas.Adabas) error {
 	fs := strings.Split(fileName, string(os.PathSeparator))
-	pictureName := ""
-	if fs[len(fs)-2] == "img" {
-		pictureName = fs[len(fs)-3] + "/" + fs[len(fs)-1]
-	} else {
-		pictureName = fs[len(fs)-2] + "/" + fs[len(fs)-1]
+	pictureName := fileName
+	if ps.ShortenName {
+		if fs[len(fs)-2] == "img" {
+			pictureName = fs[len(fs)-3] + "/" + fs[len(fs)-1]
+		} else {
+			pictureName = fs[len(fs)-2] + "/" + fs[len(fs)-1]
+		}
+		fmt.Printf("Shorten name from %s to %s\n", fileName, pictureName)
 	}
 	pictureKey := createMd5([]byte(pictureName))
 	var err error
@@ -93,7 +97,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	// fmt.Println("-> load picture name ...", pictureName, "Md5=", pictureKey)
 	var re = regexp.MustCompile(`(?m)([^/]*)/.*`)
 	d := re.FindStringSubmatch(pictureName)[1]
-	fmt.Println("Directory: ", d)
+	// fmt.Println("Directory: ", d)
 	p := PictureBinary{FileName: fileName, MetaData: &PictureMetadata{PictureName: pictureName, Directory: d, Md5: pictureKey}}
 	err = p.LoadFile()
 	if err != nil {
@@ -101,6 +105,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	}
 
 	suffix := fileName[strings.LastIndex(fileName, ".")+1:]
+	suffix = strings.ToLower(suffix)
 	switch suffix {
 	case "jpg", "jpeg", "gif":
 		p.MetaData.MIMEType = "image/" + suffix
@@ -148,7 +153,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 		fmt.Printf("Store request error %v\n", err)
 		return err
 	}
-	fmt.Println("Updated record into ISN=", p.MetaData.Index, "MD5=", p.Data.Md5)
+	adatypes.Central.Log.Debugf("Updated record into ISN=%d MD5=%s", p.MetaData.Index, p.Data.Md5)
 	err = ps.store.EndTransaction()
 	if err != nil {
 		panic("End of transaction error: " + err.Error())
@@ -198,8 +203,9 @@ func verifyPictureRecord(record *adabas.Record, x interface{}) error {
 		return xerr
 	}
 	smd := strings.Trim(v.String(), " ")
-	fmt.Printf("ISN=%d. name=%s len=%d\n     MD5 data=<%s> expected=<%s>\n", record.Isn, fileName, vLen, md, smd)
+	fmt.Printf("ISN=%d. name=%s len=%d\n", record.Isn, fileName, vLen)
 	if md != smd {
+		fmt.Printf("MD5 data=<%s> expected=<%s>\n", md, smd)
 		fmt.Println("Record checksum error", record.Isn)
 		os.Exit(255)
 	}

@@ -141,7 +141,7 @@ func (album *Album) e(div *html.Node, interval string) error {
 					px.MetaData.PictureName = p.Name
 					re = regexp.MustCompile(`(?m)([^/]*)/.*`)
 					d := re.FindStringSubmatch(p.Name)[1]
-					fmt.Println("Directory: ", d)
+					fmt.Printf("Directory: %s -> %s", p.Name, d)
 					px.MetaData.Directory = p.Name
 					px.MetaData.Title = x
 					p.MIMEType = "image/jpeg"
