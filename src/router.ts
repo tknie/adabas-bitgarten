@@ -24,6 +24,11 @@ export default new Router({
       component: () => import('./views/Editor.vue'),
     },
     {
+      path: '/registry',
+      name: 'registry',
+      component: () => import('./views/Registry.vue'),
+    },
+    {
       path: '/about',
       name: 'about',
       // route level code-splitting

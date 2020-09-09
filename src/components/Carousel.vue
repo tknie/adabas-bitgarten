@@ -80,12 +80,12 @@ export default {
     };
   },
   watch: {
-    storeImages: function(newVal: any, oldVal: any) {
+    storeImages(newVal: any, oldVal: any) {
       if (this.items) {
         this.items.forEach((i: any, index: number) => {
           if (this.images[index].pic === '') {
             const t = newVal.find((a: any) => a.md5 === i.src);
-            if (t) {        
+            if (t) {
               Vue.set(this.images, index, {
                 title: i.title,
                 fill: t.fill,

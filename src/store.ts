@@ -89,7 +89,7 @@ export default new Vuex.Store({
             return Promise.reject(error);
           }
           if (response === undefined) {
-            console.log("Response undefined ..." + response.text());
+            console.log('Response undefined ...' + response.text());
             return;
           }
           if (response.data === undefined) {
@@ -212,7 +212,7 @@ export default new Vuex.Store({
       };
       await image.loadVideo(md5).then((response) => {
         if ((response) && (response.data)) {
-          const i = {md5, width: 0, height: 0, fill: 'fillHeight', 
+          const i = {md5, width: 0, height: 0, fill: 'fillHeight',
             MIMEType: 'video', src: response.data, time: new Date()};
           context.commit('ADD_IMAGE', i);
         }
@@ -222,7 +222,7 @@ export default new Vuex.Store({
     LOAD_THUMB: async (context, md5) => {
       const x = context.getters.getThumbnailByMd5(md5);
       if (x) {
-        return;
+        return x;
       }
       // console.log('Store load thumbnail ' + md5);
       const getConfig = {
@@ -231,9 +231,13 @@ export default new Vuex.Store({
       await image.loadThumbnail(md5).then((response) => {
         if ((response) && (response.data)) {
           const thumb = { md5, src: response.data };
-          context.commit('ADD_THUMB', thumb);
+         context.commit('ADD_THUMB', thumb);
+           return response.data;
         }
-      });
+        const thumb = { md5, src: response };
+       context.commit('ADD_THUMB', thumb);
+       return response;
+    });
     },
   },
 });

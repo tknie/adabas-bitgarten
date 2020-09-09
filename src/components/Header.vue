@@ -63,7 +63,7 @@ export default class Header extends Vue {
   private onResultsChanged(value: string, oldValue: string) {
     console.log('Results changed');
   }
-  private changeChecked(evt: any,e: any) {
+  private changeChecked(evt: any, e: any) {
     store.state.editorMode = !evt;
     this.checked = store.state.editorMode;
   }

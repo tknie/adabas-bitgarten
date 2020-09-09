@@ -51,7 +51,7 @@ export default class AlbumView extends Vue {
   @Prop() private msg!: string;
   private itemx = store.state.albums;
   private busy = true;
-  data() {
+  public data() {
     return {
       isBusy: this.busy,
       items: store.state.albums,
