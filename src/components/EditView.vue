@@ -7,41 +7,61 @@
         </b-alert>
       </div>
       <div>
-        <b-button pill variant="outline-primary" @click="refreshAlbums">Refresh</b-button>
-        <b-form-select v-model="selectedItem" @change="fetchAlbumData(selectedItem)">
-          <option v-for="item in items" :key="item.Title" :value="item.ISN">{{item.Title}}</option>
+        <b-button pill variant="outline-primary" @click="refreshAlbums"
+          >Refresh</b-button
+        >
+        <b-form-select
+          v-model="selectedItem"
+          @change="fetchAlbumData(selectedItem)"
+        >
+          <option v-for="item in items" :key="item.Title" :value="item.ISN">{{
+            item.Title
+          }}</option>
         </b-form-select>
       </div>
       <div>
-        <b-button
+        <CreateAlbum />
+        <!--b-button
           pill
           v-b-toggle.collapse-1
           variant="outline-primary"
           @show="loadPictureBase()"
-        >New Album</b-button>
+          >New Album</b-button
+        >
         <b-collapse id="collapse-1" class="mt-2">
           <b-card>
             <p class="card-text">Define basic parameters for new album:</p>
             <div>
               <b-form @submit="onSubmit" inline>
-                <b-input-group>
-                  <label for="inline-form-input-name">Title</label>
-                  <b-input
-                    id="inline-form-input-name"
-                    v-model="Album.Title"
-                    placeholder="New Album name"
-                  ></b-input>
-                  <label for="inline-form-input-name">Picture base</label>
-                  <b-form-select v-model="selectedPicBaseItem" @change="fetchPictureBase()">
-                    <option v-for="p in pictures" :key="p" :value="p">{{p}}</option>
-                  </b-form-select>
+                <b-form-group
+                  id="inline-form-input-name"
+                  v-model="Album.Title"
+                  label="Title"
+                  label-for="input-1"
+                  placeholder="New Album name"
+                >
+                  <b-form-input
+                    id="input-1"
+                    v-model="form.email"
+                    required
+                    placeholder="Enter Album name"
+                  ></b-form-input>
+                </b-form-group>
+                <b-form-select
+                  v-model="selectedPicBaseItem"
+                  @change="fetchPictureBase()"
+                  label="Picture base"
+                >
+                  <option v-for="p in pictures" :key="p" :value="p">{{
+                    p
+                  }}</option>
+                </b-form-select>
 
-                  <b-button variant="primary" type="submit">Save</b-button>
-                </b-input-group>
+                <b-button variant="primary" type="submit">Save</b-button>
               </b-form>
             </div>
           </b-card>
-        </b-collapse>
+        </b-collapse-->
       </div>
     </div>
     <div>
@@ -52,10 +72,12 @@
       <b-form @submit="onUpdate">
         <div>
           <b-form-input type="text" v-model="Album.Title"></b-form-input>
-          <div>{{new Date(Album.Generated*1000)}}</div>
+          <div>{{ new Date(Album.Generated * 1000) }}</div>
         </div>
         <b-button pill variant="outline-primary" type="submit">Update</b-button>
-        <b-button pill variant="outline-primary" @click="deleteRecord">Delete</b-button>
+        <b-button pill variant="outline-primary" @click="deleteRecord"
+          >Delete</b-button
+        >
         <b-table
           ref="picTable"
           striped
@@ -64,33 +86,49 @@
           :items="Album.Pictures"
           :fields="fields"
         >
-          <template v-slot:cell(index)="data">{{data.index+1}}</template>
+          <template v-slot:cell(index)="data">{{ data.index + 1 }}</template>
           <template v-slot:cell(order)="data">
             <b-form-input
               type="number"
-              @change="changeOrder(data.index+1,$event)"
+              @change="changeOrder(data.index + 1, $event)"
               :value="data.index + 1"
+            ></b-form-input>
+            <b-form-input
+              type="text"
+              v-model="Album.Pictures[data.index].Md5"
+            ></b-form-input>
+            <b-form-input
+              type="text"
+              v-model="Album.Pictures[data.index].MIMEType"
+            ></b-form-input>
+            <b-form-input
+              type="text"
+              v-model="Album.Pictures[data.index].Fill"
             ></b-form-input>
           </template>
           <template v-slot:cell(Description)="data">
-            <b-form-input type="text" v-model="Album.Pictures[data.index].Description"></b-form-input>
+            <b-form-input
+              type="text"
+              v-model="Album.Pictures[data.index].Description"
+            ></b-form-input>
           </template>
           <template v-slot:cell(Md5)="data">
-            <img :src="Thumbnail(data.item.Md5)" class="rounded" :alt="'Error loading'" />
-          </template>
-          <template v-slot:cell(MIMEtype)="data">
-            <b-form-input type="text" v-model="Album.Pictures[data.index].Md5"></b-form-input>
-            <b-form-input type="text" v-model="Album.Pictures[data.index].MIMEType"></b-form-input>
-            <b-form-input type="text" v-model="Album.Pictures[data.index].Fill"></b-form-input>
+            <img
+              :src="Thumbnail(data.item.Md5)"
+              class="rounded"
+              :alt="'Error loading'"
+            />
           </template>
         </b-table>
-        <b-button pill variant="outline-primary" @click="addPicture">Add Picture</b-button>
+        <b-button pill variant="outline-primary" @click="addPicture"
+          >Add Picture</b-button
+        >
       </b-form>
     </div>
   </div>
 </template>
 
-<script lang='ts'>
+<script lang="ts">
 import { Component, Prop, Watch, Vue } from 'vue-property-decorator';
 import {
   AlertPlugin,
@@ -108,6 +146,7 @@ import { image } from '../images';
 import { albums } from '../albums';
 import 'bootstrap/dist/css/bootstrap.css';
 import 'bootstrap-vue/dist/bootstrap-vue.css';
+import CreateAlbum from './CreateAlbum.vue';
 
 Vue.use(FormSelectPlugin);
 Vue.use(FormCheckboxPlugin);
@@ -119,13 +158,13 @@ Vue.use(FormGroupPlugin);
 Vue.use(AlertPlugin);
 Vue.use(CardPlugin);
 
-export default {
-  extends: Vue,
-  props: {
-    id: {
-      type: String,
-    },
+@Component({
+  components: {
+    CreateAlbum,
   },
+})
+export default class EditView extends Vue {
+  @Prop(String) readonly id: string | undefined;
   data() {
     return {
       Album: {
@@ -149,22 +188,22 @@ export default {
         { key: 'order', sortable: true },
         { key: 'Description', sortable: true },
         { key: 'Md5' },
-        { key: 'MIMEtype' },
       ],
     };
-  },
-  watch: {
-    a(newVal: any, oldVal: any) {
-      // console.log('Change Album');
-      this.albums = newVal.find((album: any) => album.id === this.selectedItem);
-      if (this.albums && this.albums !== null) {
-        this.adaptAlbum(this.albums);
-      }
-    },
-  },
+  }
+  @Watch('a')
+  changeAlbum(newVal: any, oldVal: any) {
+    // console.log('Change Album');
+    this.$data.albums = newVal.find(
+      (album: any) => album.id === this.$data.selectedItem,
+    );
+    if (this.$data.albums && this.$data.albums !== null) {
+      this.adaptAlbum(this.$data.albums);
+    }
+  }
   created() {
     console.log('Create editor');
-    this.Album.Pictures = [];
+    this.$data.Album.Pictures = [];
     const items = this.getItems();
     if (items.length < 2) {
       store.dispatch('INIT_ALBUMS', '');
@@ -172,166 +211,166 @@ export default {
     const promise = image.loadPictureBases();
     promise.then(
       (response: any) => {
-        this.pictures = response;
+        this.$data.pictures = response;
         // console.log('Loaded all pictures ' + JSON.stringify(this.pictures));
         return response.data;
       },
       (error: any) => console.log('Load error: ' + error),
     );
-  },
-  methods: {
-    changeOrder(from: any, to: any) {
-      console.log('Change ' + from + ' to ' + to);
-      if (to === from) {
-        return;
+  }
+  changeOrder(from: any, to: any) {
+    console.log('Change ' + from + ' to ' + to);
+    if (to === from) {
+      return;
+    }
+    console.log('Pictures before ' + JSON.stringify(this.$data.Album.Pictures));
+    const pics = [];
+    for (let i = 0; i < this.$data.Album.Pictures.length; i++) {
+      if (i === to - 1) {
+        pics.push(this.$data.Album.Pictures[from - 1]);
       }
-      console.log('Pictures before ' + JSON.stringify(this.Album.Pictures));
-      const pics = [];
-      for (let i = 0; i < this.Album.Pictures.length; i++) {
-        if (i === to - 1) {
-          pics.push(this.Album.Pictures[from - 1]);
-        }
-        if (i !== from - 1) {
-          pics.push(this.Album.Pictures[i]);
-        }
+      if (i !== from - 1) {
+        pics.push(this.$data.Album.Pictures[i]);
       }
-      this.Album.Pictures = pics;
-      console.log('Pictures after ' + JSON.stringify(this.Album.Pictures));
-      this.$refs.picTable.refresh();
-    },
-    getItems() {
-      return store.state.albums;
-    },
-    deleteRecord() {
-      albums.deleteAlbum(this.Isn);
-    },
-    addPicture() {
-      const x = {
-        Description: 'Extra',
-        Fill: 'Fill',
-        Interval: 8000,
-        MIMEType: 'image/jpeg',
-        Md5: this.Album.Pictures[0].Md5,
-        Size: {
-          Height: this.Album.Pictures[0].Md5.h,
-          Width: this.Album.Pictures[0].Md5.w,
-        },
-      };
+    }
+    this.$data.Album.Pictures = pics;
+    console.log('Pictures after ' + JSON.stringify(this.$data.Album.Pictures));
+    (this.$refs.picTable as any).refresh();
+  }
+  getItems() {
+    return store.state.albums;
+  }
+  deleteRecord() {
+    albums.deleteAlbum(this.$data.Isn);
+  }
+  addPicture() {
+    const x = {
+      Description: 'Extra',
+      Fill: 'Fill',
+      Interval: 8000,
+      MIMEType: 'image/jpeg',
+      Md5: this.$data.Album.Pictures[0].Md5,
+      Size: {
+        Height: this.$data.Album.Pictures[0].Md5.h,
+        Width: this.$data.Album.Pictures[0].Md5.w,
+      },
+    };
 
-      this.Album.Pictures.push(x);
-    },
-    refreshAlbums() {
-      store.commit('CLEAR', '');
-      store.dispatch('INIT_ALBUMS', '');
-    },
-    adaptAlbum(albumCard: any) {
-      // console.log('Receive ' + JSON.stringify(albumCard));
-      this.Isn = albumCard.id;
-      this.Album.Title = albumCard.Title;
-      this.Album.Date = albumCard.date;
-      this.Album.Generated = Math.floor(new Date().getTime() / 1000);
-      this.Album.Pictures = [];
-      albumCard.pictures.forEach((element: any) => {
-        const x = {
-          Description: element.title,
-          Fill: element.fill,
-          Interval: 8000,
-          MIMEType: element.MIMEType,
-          Md5: element.msrc,
-          Size: { Height: element.h, Width: element.w },
-        };
-        this.Album.Pictures.push(x);
-      });
-      if (this.Album.Pictures.length > 0) {
-        this.Album.Metadata.Thumbnail = this.Album.Pictures[0].Md5;
-      }
-      this.Album.Metadata.AlbumDescription = albumCard.Title;
-      // console.log('Found ' + JSON.stringify(this.Album));
-    },
-    fetchAlbumData(idx: string) {
-      // console.log('Select and fetch <' + this.selectedItem + '> ' + idx);
-      if (!this.selectedItem) {
-        return;
-      }
-      // console.log('Get album fetch');
-      const a = store.getters.getAlbumById(this.selectedItem);
-      if (a) {
-        // console.log('GOT: ' + JSON.stringify(a));
-        this.adaptAlbum(a);
-        return;
-      } else {
-        console.log('FAIL: ' + this.selectedItem);
-      }
-      store.dispatch('INIT_ALBUM', { nr: this.selectedItem, loadImage: false });
-    },
-    loadPictureBase() {
-      console.log('Load picture base');
-    },
-    fetchPictureBase() {
-      console.log('Fetch picture base');
-      this.Album.Pictures = [];
-      image
-        .loadPictureDirectory(this.selectedPicBaseItem)
-        .then((element: any) => {
-          // console.log('Fetched picture base ' + JSON.stringify(element));
-          this.Isn = 0;
-          this.Album.Date = Math.floor(new Date().getTime() / 1000);
-          this.Album.Generated = Math.floor(new Date().getTime() / 1000);
-          this.Album.Pictures = [];
-          element.forEach((p: any) => {
-            const x = {
-              Description: p.title,
-              Fill: 'fill',
-              Interval: 8000,
-              MIMEType: 'image/jpeg',
-              Md5: p.msrc,
-              Name: p.title,
-              Size: { Height: 1280, Width: 960 },
-            };
-            this.Album.Pictures.push(x);
-            // console.log('Load thumb: ' + p.msrc);
-            store.dispatch('LOAD_THUMB', p.msrc);
-          });
+    this.$data.Album.Pictures.push(x);
+  }
+  refreshAlbums() {
+    store.commit('CLEAR', '');
+    store.dispatch('INIT_ALBUMS', '');
+  }
+  adaptAlbum(albumCard: any) {
+    // console.log('Receive ' + JSON.stringify(albumCard));
+    this.$data.Isn = albumCard.id;
+    this.$data.Album.Title = albumCard.Title;
+    this.$data.Album.Date = albumCard.date;
+    this.$data.Album.Generated = Math.floor(new Date().getTime() / 1000);
+    this.$data.Album.Pictures = [];
+    albumCard.pictures.forEach((element: any) => {
+      const x = {
+        Description: element.title,
+        Fill: element.fill,
+        Interval: 8000,
+        MIMEType: element.MIMEType,
+        Md5: element.msrc,
+        Size: { Height: element.h, Width: element.w },
+      };
+      this.$data.Album.Pictures.push(x);
+    });
+    if (this.$data.Album.Pictures.length > 0) {
+      this.$data.Album.Metadata.Thumbnail = this.$data.Album.Pictures[0].Md5;
+    }
+    this.$data.Album.Metadata.AlbumDescription = albumCard.Title;
+    // console.log('Found ' + JSON.stringify(this.Album));
+  }
+  fetchAlbumData(idx: string) {
+    // console.log('Select and fetch <' + this.selectedItem + '> ' + idx);
+    if (!this.$data.selectedItem) {
+      return;
+    }
+    // console.log('Get album fetch');
+    const a = store.getters.getAlbumById(this.$data.selectedItem);
+    if (a) {
+      // console.log('GOT: ' + JSON.stringify(a));
+      this.adaptAlbum(a);
+      return;
+    } else {
+      console.log('FAIL: ' + this.$data.selectedItem);
+    }
+    store.dispatch('INIT_ALBUM', {
+      nr: this.$data.selectedItem,
+      loadImage: false,
+    });
+  }
+  loadPictureBase() {
+    console.log('Load picture base');
+  }
+  fetchPictureBase() {
+    console.log('Fetch picture base');
+    this.$data.Album.Pictures = [];
+    image
+      .loadPictureDirectory(this.$data.selectedPicBaseItem)
+      .then((element: any) => {
+        // console.log('Fetched picture base ' + JSON.stringify(element));
+        this.$data.Isn = 0;
+        this.$data.Album.Date = Math.floor(new Date().getTime() / 1000);
+        this.$data.Album.Generated = Math.floor(new Date().getTime() / 1000);
+        this.$data.Album.Pictures = [];
+        element.forEach((p: any) => {
+          const x = {
+            Description: p.title,
+            Fill: 'fill',
+            Interval: 8000,
+            MIMEType: 'image/jpeg',
+            Md5: p.msrc,
+            Name: p.title,
+            Size: { Height: 1280, Width: 960 },
+          };
+          this.$data.Album.Pictures.push(x);
+          // console.log('Load thumb: ' + p.msrc);
+          store.dispatch('LOAD_THUMB', p.msrc);
         });
-    },
-    Thumbnail(data: any) {
-      // console.log('Thumbnail: ' + JSON.stringify(data));
-      const i = store.getters.getThumbnailByMd5(data);
-      if (i) {
-        return i.src;
-      }
-      return '';
-    },
-    save(evt: any) {
-      console.log('Save clicked');
-    },
-    onSubmit(evt: any) {
-      evt.preventDefault();
-      albums.storeAlbums(this.Album);
-    },
-    onUpdate(evt: any) {
-      evt.preventDefault();
-      this.Album.Metadata.Thumbnail = this.Album.Pictures[0].Md5;
-      albums.updateAlbums(this.Isn, this.Album);
-      store.commit('CLEAR', '');
-      store.dispatch('INIT_ALBUM', { nr: this.Isn, loadImage: false });
-    },
-    onReset(evt: any) {
-      evt.preventDefault();
-      // Reset our form values
-      this.form.email = '';
-      this.form.name = '';
-      this.form.food = null;
-      this.form.checked = [];
-      // Trick to reset/clear native browser form validation state
-      this.show = false;
-      this.$nextTick(() => {
-        this.show = true;
       });
-    },
-  },
-};
+  }
+  Thumbnail(data: any) {
+    // console.log('Thumbnail: ' + JSON.stringify(data));
+    const i = store.getters.getThumbnailByMd5(data);
+    if (i) {
+      return i.src;
+    }
+    return '';
+  }
+  save(evt: any) {
+    console.log('Save clicked');
+  }
+  onSubmit(evt: any) {
+    evt.preventDefault();
+    albums.storeAlbums(this.$data.Album);
+  }
+  onUpdate(evt: any) {
+    evt.preventDefault();
+    this.$data.Album.Metadata.Thumbnail = this.$data.Album.Pictures[0].Md5;
+    albums.updateAlbums(this.$data.Isn, this.$data.Album);
+    store.commit('CLEAR', '');
+    store.dispatch('INIT_ALBUM', { nr: this.$data.Isn, loadImage: false });
+  }
+  private onReset(evt: any) {
+    evt.preventDefault();
+    // Reset our form values
+    this.$data.form.email = '';
+    this.$data.form.name = '';
+    this.$data.form.food = null;
+    this.$data.form.checked = [];
+    // Trick to reset/clear native browser form validation state
+    this.$data.show = false;
+    this.$nextTick(() => {
+      this.$data.show = true;
+    });
+  }
+}
 </script>
 
-<style>
-</style>
+<style></style>

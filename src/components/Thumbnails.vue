@@ -15,12 +15,14 @@
 
 <template>
   <div class="thumbnails">
-      <b-container><b-row><b-col>xxxx</b-col><b-col>yyyy</b-col></b-row><b-row><b-col>xxxx</b-col><b-col>yyyy</b-col></b-row></b-container>
+    <b-container
+      ><b-row><b-col>xxxx</b-col><b-col>yyyy</b-col></b-row
+      ><b-row><b-col>xxxx</b-col><b-col>yyyy</b-col></b-row></b-container
+    >
     <b-container class="mb-3 w-100">
       <b-row cols="2"
         ><b-col sm="6">AAAA</b-col><b-col sm="6">BBBB</b-col>
-        <b-col sm="6"
-          >
+        <b-col sm="6">
           <!--b-table small ref="picTable" :items="records" :fields="fields">
             <template v-slot:cell(pic)="data">
               <img
@@ -29,8 +31,10 @@
                 :alt="'Not available'"
               />
             </template>
-          </b-table-->Test </b-col
-        ></b-row><b-row><b-col sm="6"
+          </b-table-->Test
+        </b-col></b-row
+      ><b-row
+        ><b-col sm="6"
           >Test
           <!--b-table small ref="picTable2" :items="records" :fields="fields">
             <template v-slot:cell(pic)="data">
@@ -40,18 +44,19 @@
                 :alt="'Not available'"
               />
             </template>
-          </b-table--> </b-col
-      ></b-row>
+          </b-table-->
+        </b-col></b-row
+      >
     </b-container>
   </div>
 </template>
 
 <script lang="ts">
-import { Component, Prop, PropSync, Vue, Watch } from "vue-property-decorator";
-import { authHeader } from "../auth-header";
-import { config } from "../config";
-import axios from "axios";
-import store from "../store";
+import { Component, Prop, PropSync, Vue, Watch } from 'vue-property-decorator';
+import { authHeader } from '../auth-header';
+import { config } from '../config';
+import axios from 'axios';
+import store from '../store';
 
 @Component
 export default class Thumbnails extends Vue {
@@ -63,65 +68,65 @@ export default class Thumbnails extends Vue {
       numberMaps: 0,
       offset: 0,
       records: null,
-      fields: ["ISN", "pic"],
+      fields: ['ISN', 'pic'],
       numbers: [1, 2, 3, 4, 5],
     };
   }
   private created() {
-    console.log("Create thumbnail component");
+    console.log('Create thumbnail component');
     const getConfig = {
-      headers: authHeader("application/json"),
+      headers: authHeader('application/json'),
       useCredentails: true,
     };
-    console.log("Init receiving Albums");
+    console.log('Init receiving Albums');
     axios
       .get(
         config.Url() +
-          "/rest/map/PictureMetadata?limit=10&offset=" +
+          '/rest/map/PictureMetadata?limit=10&offset=' +
           this.$data.offset,
-        getConfig
+        getConfig,
       )
       .then((response: any) => {
-        console.log("RESPONSE: " + JSON.stringify(response));
+        console.log('RESPONSE: ' + JSON.stringify(response));
         this.$data.records = response.data.Records;
         this.$data.records.forEach((element: any) => {
           this.callThumbnail(element);
         });
       });
   }
-  callThumbnail(element: any) {
-    store.dispatch("LOAD_THUMB", element.Md5).then((t: any) => {
+  private callThumbnail(element: any) {
+    store.dispatch('LOAD_THUMB', element.Md5).then((t: any) => {
       if (t) {
-        console.log("K " + t.md5);
+        console.log('K ' + t.md5);
         element.pic = t.src;
-        this.$refs.picTable.refresh();
+        (this.$refs.picTable as any).refresh();
       }
     });
   }
-  @Watch("thumbnail")
+  @Watch('thumbnail')
   private onThumbnailChanged(value: any, oldValue: any) {
-    console.log("Changed thumbnail: " + JSON.stringify(value));
+    console.log('Changed thumbnail: ' + JSON.stringify(value));
     this.$data.records.forEach((element: any, index: number) => {
-      if (!element.pic || element.pic === "") {
+      if (!element.pic || element.pic === '') {
         const x = store.getters.getThumbnailByMd5(element.Md5);
         if (x) {
-          console.log(index + " X found " + element.Md5);
+          console.log(index + ' X found ' + element.Md5);
           element.pic = x.src;
         } else {
-          console.log(index + " X not found " + element.Md5);
+          console.log(index + ' X not found ' + element.Md5);
         }
       }
     });
-    this.$refs.picTable.refresh();
+    (this.$refs.picTable as any).refresh();
   }
-  recordThumbs(index: number): string {
-    console.log("Check " + index + " on " + this.$data.records.length);
+  private recordThumbs(index: number): string {
+    console.log('Check ' + index + ' on ' + this.$data.records.length);
     if (this.$data.records && index < this.$data.records.length) {
       if (this.$data.records[index].pic) {
         return this.$data.records[index].pic;
       }
     }
-    return "";
+    return '';
   }
 }
 </script>

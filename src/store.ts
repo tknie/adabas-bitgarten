@@ -52,8 +52,10 @@ export default new Vuex.Store({
       state.albums.length = 0;
       albums.forEach((a: any) => {
         const d = new Date(a.Date * 1000);
-        const x = { ISN: a.ISN, Title: a.Title, Date: d,
-           Thumbnail: a.Metadata.Thumbnail };
+        const x = {
+          ISN: a.ISN, Title: a.Title, Date: d,
+          Thumbnail: a.Metadata.Thumbnail,
+        };
         state.albums.push(x);
       });
       //      state.albums = albums;
@@ -154,7 +156,7 @@ export default new Vuex.Store({
               if (i.MIMEType.startsWith('image/')) {
                 // console.log('Load image '+element.Name+' '+i.MIMEType)
                 context.dispatch('LOAD_IMAGE', i.src);
-               } else {
+              } else {
                 // console.log('Load video '+element.Name+' '+i.MIMEType)
                 context.dispatch('LOAD_VIDEO', i.src);
               }
@@ -162,14 +164,16 @@ export default new Vuex.Store({
             context.dispatch('LOAD_THUMB', i.msrc);
             p.push(i);
           });
-          const album = { id: x.nr, Title: record.Title,
-            date: record.Date, pictures: p };
+          const album = {
+            id: x.nr, Title: record.Title,
+            date: record.Date, pictures: p,
+          };
           context.commit('ADD_ALBUM', album);
         },
-        (error) => {
-          userService.logout();
-          location.reload(true);
-        });
+          (error) => {
+            userService.logout();
+            location.reload(true);
+          });
     },
     LOAD_IMAGE: async (context, md5) => {
       if (!md5) {
@@ -186,7 +190,7 @@ export default new Vuex.Store({
       await image.loadImage(md5).then((response) => {
         if ((response) && (response.data)) {
           const img = new Image();
-          const i = {md5, width: 0, height: 0, fill: 'fill', src: response.data, time: new Date()};
+          const i = { md5, width: 0, height: 0, fill: 'fill', src: response.data, time: new Date() };
           img.onload = () => {
             i.width = img.width;
             i.height = img.height;
@@ -196,7 +200,7 @@ export default new Vuex.Store({
           };
         }
       },
-      (error) => console.log('Error loading image' + error));
+        (error) => console.log('Error loading image' + error));
     },
     LOAD_VIDEO: async (context, md5) => {
       if (!md5) {
@@ -212,12 +216,14 @@ export default new Vuex.Store({
       };
       await image.loadVideo(md5).then((response) => {
         if ((response) && (response.data)) {
-          const i = {md5, width: 0, height: 0, fill: 'fillHeight',
-            MIMEType: 'video', src: response.data, time: new Date()};
+          const i = {
+            md5, width: 0, height: 0, fill: 'fillHeight',
+            MIMEType: 'video', src: response.data, time: new Date(),
+          };
           context.commit('ADD_IMAGE', i);
         }
       },
-      (error) => console.log('Error loading image' + error));
+        (error) => console.log('Error loading image' + error));
     },
     LOAD_THUMB: async (context, md5) => {
       const x = context.getters.getThumbnailByMd5(md5);
@@ -230,14 +236,14 @@ export default new Vuex.Store({
       };
       await image.loadThumbnail(md5).then((response) => {
         if ((response) && (response.data)) {
-          const thumb = { md5, src: response.data };
-         context.commit('ADD_THUMB', thumb);
-           return response.data;
+          const th = { md5, src: response.data };
+          context.commit('ADD_THUMB', th);
+          return response.data;
         }
         const thumb = { md5, src: response };
-       context.commit('ADD_THUMB', thumb);
-       return response;
-    });
+        context.commit('ADD_THUMB', thumb);
+        return response;
+      });
     },
   },
 });
