@@ -106,6 +106,7 @@ func main() {
 	var deleteIsn int
 	var verify bool
 	var update bool
+	var checksumRun bool
 	var shortenName bool
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
@@ -117,6 +118,7 @@ func main() {
 	flag.BoolVar(&verify, "v", false, "Verify data")
 	flag.BoolVar(&update, "u", false, "Update data")
 	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
+	flag.BoolVar(&checksumRun, "c", false, "Checksum run, no data load")
 	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
 	flag.Parse()
 
@@ -155,6 +157,8 @@ func main() {
 		return
 	}
 	defer ps.Close()
+
+	ps.ChecksumRun = checksumRun
 
 	if deleteIsn > 0 {
 		err := ps.DeleteIsn(a, adatypes.Isn(deleteIsn))

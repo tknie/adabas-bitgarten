@@ -18,11 +18,12 @@ type PictureConnection struct {
 	storeThumb  *adabas.StoreRequest
 	readCheck   *adabas.ReadRequest
 	ShortenName bool
+	ChecksumRun bool
 }
 
 // InitStorePictureBinary init store picture connection
 func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error) {
-	ps = &PictureConnection{ShortenName: shortenName}
+	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false}
 	ps.conn, err = adabas.NewConnection("acj;map")
 	if err != nil {
 		return nil, err
@@ -70,7 +71,7 @@ func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error)
 func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adabas.Adabas) error {
 	fs := strings.Split(fileName, string(os.PathSeparator))
 	pictureName := fileName
-	if ps.ShortenName {
+	if !ps.ShortenName {
 		if fs[len(fs)-2] == "img" {
 			pictureName = fs[len(fs)-3] + "/" + fs[len(fs)-1]
 		} else {
@@ -140,11 +141,14 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	}
 	p.Data.Md5 = p.MetaData.Md5
 	p.Data.Index = p.MetaData.Index
-	// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
-	err = ps.storeData.UpdateData(p.Data, true)
-	if err != nil {
-		fmt.Println("Error storing record data:", err)
-		return err
+	if !ps.ChecksumRun {
+		fmt.Println("Skip data storage")
+		// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
+		err = ps.storeData.UpdateData(p.Data, true)
+		if err != nil {
+			fmt.Println("Error storing record data:", err)
+			return err
+		}
 	}
 	ps.conn.EndTransaction()
 	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
