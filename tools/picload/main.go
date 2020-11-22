@@ -198,7 +198,8 @@ func main() {
 	}
 	if pictureDirectory != "" {
 		err = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
-			if info.IsDir() {
+			if info == nil || info.IsDir() {
+				adatypes.Central.Log.Infof("Info empty or dir: %s", path)
 				return nil
 			}
 			suffix := path[strings.LastIndex(path, ".")+1:]
