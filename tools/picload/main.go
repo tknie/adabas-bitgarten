@@ -154,7 +154,7 @@ func main() {
 	ps, perr := store.InitStorePictureBinary(!shortenName)
 	if perr != nil {
 		fmt.Println("Adabas connection error", perr)
-		return
+		panic("Adabas communication error")
 	}
 	defer ps.Close()
 
@@ -197,6 +197,7 @@ func main() {
 
 	}
 	if pictureDirectory != "" {
+		counter := uint64(0)
 		err = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
 			if info == nil || info.IsDir() {
 				adatypes.Central.Log.Infof("Info empty or dir: %s", path)
@@ -215,8 +216,13 @@ func main() {
 				}
 			default:
 			}
+			counter++
+			if counter%1000 == 0 {
+				fmt.Printf("Picture directory checked=%d loaded=%d found=%d\n", ps.Checked, ps.Loaded, ps.Found)
+			}
 			return nil
 		})
+		fmt.Printf("Picture directory checked=%d loaded=%d found=%d\n", ps.Checked, ps.Loaded, ps.Found)
 	}
 	if verify {
 		err = store.VerifyPicture("Picture", fmt.Sprintf("%s,%d", dbidParameter, mapFnrParameter))

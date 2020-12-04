@@ -19,6 +19,9 @@ type PictureConnection struct {
 	readCheck   *adabas.ReadRequest
 	ShortenName bool
 	ChecksumRun bool
+	Found       uint64
+	Loaded      uint64
+	Checked     uint64
 }
 
 // InitStorePictureBinary init store picture connection
@@ -86,8 +89,10 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	if err != nil {
 		return err
 	}
+	ps.Checked++
 	if ok && insert {
-		fmt.Println(pictureName, "-> picture name already loaded")
+		adatypes.Central.Log.Debugf(pictureName, "-> picture name already loaded")
+		ps.Found++
 		return nil
 	}
 	info := "Loading"
@@ -162,6 +167,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	if err != nil {
 		panic("End of transaction error: " + err.Error())
 	}
+	ps.Loaded++
 	validateUsingMap(ada, adatypes.Isn(p.MetaData.Index))
 	return nil
 }
@@ -176,10 +182,10 @@ func (ps *PictureConnection) available(key string) (bool, error) {
 	}
 	// result.DumpValues()
 	if len(result.Values) > 0 || len(result.Data) > 0 {
-		fmt.Printf("Md5=%s is available\n", key)
+		adatypes.Central.Log.Debugf("Md5=%s is available\n", key)
 		return true, nil
 	}
-	fmt.Printf("Md5=%s is not loaded\n", key)
+	adatypes.Central.Log.Debugf("Md5=%s is not loaded\n", key)
 	return false, nil
 }
 
