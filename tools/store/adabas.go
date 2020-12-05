@@ -154,8 +154,11 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 			fmt.Println("Error storing record data:", err)
 			return err
 		}
+		err = ps.conn.EndTransaction()
+		if err != nil {
+			panic("Data write: end of transaction error: " + err.Error())
+		}
 	}
-	ps.conn.EndTransaction()
 	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
 	err = ps.storeThumb.UpdateData(p.Data)
 	if err != nil {
@@ -168,7 +171,6 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 		panic("End of transaction error: " + err.Error())
 	}
 	ps.Loaded++
-	validateUsingMap(ada, adatypes.Isn(p.MetaData.Index))
 	return nil
 }
 

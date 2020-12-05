@@ -292,33 +292,6 @@ func loadMovie(fileName string, ada *adabas.Adabas) error {
 	return nil
 }
 
-func validateUsingMap(a *adabas.Adabas, isn adatypes.Isn) {
-	adatypes.Central.Log.Debugf("Validate using Map and ISN=%d", isn)
-	mapRepository := adabas.NewMapRepository(a.URL, 4)
-	request, err := adabas.NewReadRequest("PictureBinary", a, mapRepository)
-	if err != nil {
-		fmt.Printf("New map request error %v\n", err)
-		return
-	}
-	defer request.Close()
-	_, openErr := request.Open()
-	if openErr == nil {
-		err := request.QueryFields("PictureBinary")
-		if err != nil {
-			return
-		}
-		fmt.Println("Query defined, read record ...")
-		result, rerr := request.ReadISN(isn)
-		if rerr == nil {
-			picValue := result.Values[0].HashFields["PictureBinary"]
-			if picValue == nil {
-				return
-			}
-		}
-	}
-	fmt.Println("Data validated with map methods")
-}
-
 // StorePicture store picture data
 func (pic *PictureBinary) StorePicture() error {
 	s := &Store{}
