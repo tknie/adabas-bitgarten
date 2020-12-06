@@ -38,6 +38,7 @@ import (
 )
 
 var hostname string
+var timeFormat = "2006-01-02 15:04:05"
 
 func init() {
 	hostname, _ = os.Hostname()
@@ -216,7 +217,7 @@ func main() {
 	}
 	if pictureDirectory != "" {
 		output := func() {
-			fmt.Printf("Picture directory checked=%d loaded=%d found=%d\n", ps.Checked, ps.Loaded, ps.Found)
+			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d\n", time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found)
 		}
 
 		stop := schedule(output, 5*time.Second)
@@ -241,7 +242,7 @@ func main() {
 			return nil
 		})
 		stop <- true
-		fmt.Printf("Picture directory checked=%d loaded=%d found=%d\n", ps.Checked, ps.Loaded, ps.Found)
+		fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d\n", time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found)
 	}
 	if verify {
 		err = store.VerifyPicture("Picture", fmt.Sprintf("%s,%d", dbidParameter, mapFnrParameter))
