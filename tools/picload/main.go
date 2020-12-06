@@ -219,7 +219,7 @@ func main() {
 			fmt.Printf("Picture directory checked=%d loaded=%d found=%d\n", ps.Checked, ps.Loaded, ps.Found)
 		}
 
-		stop := schedule(output, 5*time.Millisecond)
+		stop := schedule(output, 5*time.Second)
 		err = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
 			if info == nil || info.IsDir() {
 				adatypes.Central.Log.Infof("Info empty or dir: %s", path)
