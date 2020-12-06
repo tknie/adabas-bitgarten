@@ -45,7 +45,7 @@ func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error)
 		ps.conn.Close()
 		return nil, err
 	}
-	err = ps.storeData.StoreFields("Md5,ChecksumPicture,Media")
+	err = ps.storeData.StoreFields("Md5,Media")
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error)
 		ps.conn.Close()
 		return nil, err
 	}
-	err = ps.storeThumb.StoreFields("Md5,ChecksumThumbnail,Thumbnail")
+	err = ps.storeThumb.StoreFields("Md5,ChecksumPicture,ChecksumThumbnail,Thumbnail")
 	if err != nil {
 		return nil, err
 	}

@@ -24,12 +24,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"runtime/pprof"
-	"strings"
-	"time"
-	"tux-lobload/store"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -51,7 +47,7 @@ func init() {
 		level = zapcore.InfoLevel
 	}
 
-	err := initLogLevelWithFile("picload.log", level)
+	err := initLogLevelWithFile("checker.log", level)
 	if err != nil {
 		fmt.Println("Error initialize logging")
 		os.Exit(255)
@@ -99,45 +95,14 @@ func initLogLevelWithFile(fileName string, level zapcore.Level) (err error) {
 	return
 }
 
-func schedule(what func(), delay time.Duration) chan bool {
-	stop := make(chan bool)
-
-	go func() {
-		for {
-			what()
-			select {
-			case <-time.After(delay):
-			case <-stop:
-				return
-			}
-		}
-	}()
-
-	return stop
-}
-
 func main() {
-	var fileName string
-	var pictureDirectory string
 	var dbidParameter string
 	var mapFnrParameter int
-	var deleteIsn int
-	var verify bool
-	var update bool
-	var checksumRun bool
-	var shortenName bool
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
-	flag.StringVar(&fileName, "p", "", "File name of picture to be imported")
-	flag.StringVar(&pictureDirectory, "D", "", "Directory of picture to be imported")
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
 	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
-	flag.BoolVar(&verify, "v", false, "Verify data")
-	flag.BoolVar(&update, "u", false, "Update data")
-	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
-	flag.BoolVar(&checksumRun, "c", false, "Checksum run, no data load")
-	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
 	flag.Parse()
 
 	if *cpuprofile != "" {
@@ -152,11 +117,11 @@ func main() {
 	}
 	defer writeMemProfile(*memprofile)
 
-	if !verify && (fileName == "" && pictureDirectory == "" && deleteIsn == -1) {
-		fmt.Println("File name option is required")
-		flag.Usage()
-		return
-	}
+	// if  {
+	// 	fmt.Println("File name option is required")
+	// 	flag.Usage()
+	// 	return
+	// }
 	fmt.Printf("Connect to map repository %s/%d\n", dbidParameter, mapFnrParameter)
 
 	id := adabas.NewAdabasID()
@@ -167,87 +132,45 @@ func main() {
 	}
 	adabas.AddGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
 	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	//adabas.DumpGlobalMapRepositories()
 
-	ps, perr := store.InitStorePictureBinary(!shortenName)
-	if perr != nil {
-		fmt.Println("Adabas connection error", perr)
-		panic("Adabas communication error")
+	err = analyzeDoublikats(a)
+	if err != nil {
+		fmt.Println("Error anaylzing douplikats", err)
 	}
-	defer ps.Close()
+}
 
-	ps.ChecksumRun = checksumRun
-
-	if deleteIsn > 0 {
-		err := ps.DeleteIsn(a, adatypes.Isn(deleteIsn))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error deleting Isn=%d: %v", deleteIsn, err)
-		} else {
-			fmt.Printf("Isn=%d successfull deleted ....\n", deleteIsn)
+func analyzeDoublikats(a *adabas.Adabas) error {
+	conn, err := adabas.NewConnection("acj;map")
+	if err != nil {
+		return err
+	}
+	readCheck, rerr := conn.CreateMapReadRequest("PictureData")
+	if rerr != nil {
+		conn.Close()
+		return rerr
+	}
+	readCheck.Limit = 0
+	rerr = readCheck.QueryFields("ChecksumPicture")
+	if rerr != nil {
+		conn.Close()
+		return rerr
+	}
+	cursor, err := readCheck.HistogramByCursoring("ChecksumPicture")
+	if err != nil {
+		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
+		panic("Read error " + err.Error())
+	}
+	for cursor.HasNextRecord() {
+		record, recErr := cursor.NextRecord()
+		if recErr != nil {
+			panic("Read error " + recErr.Error())
 		}
-		return
-	}
-
-	if fileName != "" {
-		err = filepath.Walk(fileName, func(path string, info os.FileInfo, err error) error {
-			if info.IsDir() {
-				return nil
-			}
-			// fmt.Println("Check", path)
-			if strings.HasSuffix(strings.ToLower(path), "index.html") {
-				//fmt.Println("Found index file", path)
-				return ps.LoadIndex(!update, path, a)
-			}
-			// if strings.HasSuffix(strings.ToLower(path), ".jpg") {
-			// 	fmt.Println("Load Jpeg", path)
-			// 	return LoadPicture(path, a)
-			// }
-			// if strings.HasSuffix(strings.ToLower(path), ".m4v") {
-			// 	fmt.Println("Load Movie", path)
-			// 	return loadMovie(path, a)
-			// }
-			return nil
-		})
-		if err != nil {
-			fmt.Println("Error walking path", err)
+		if record.Quantity != 1 {
+			//		record.DumpValues()
+			fmt.Println("quantity=", record.Quantity, record.HashFields["ChecksumPicture"])
 		}
-		// fmt.Println("End of lob load")
-
 	}
-	if pictureDirectory != "" {
-		output := func() {
-			fmt.Printf("Picture directory checked=%d loaded=%d found=%d\n", ps.Checked, ps.Loaded, ps.Found)
-		}
-
-		stop := schedule(output, 5*time.Millisecond)
-		err = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
-			if info == nil || info.IsDir() {
-				adatypes.Central.Log.Infof("Info empty or dir: %s", path)
-				return nil
-			}
-			suffix := path[strings.LastIndex(path, ".")+1:]
-			suffix = strings.ToLower(suffix)
-			switch suffix {
-			case "jpg", "jpeg", "gif", "m4v", "mov":
-				adatypes.Central.Log.Debugf("Checking picture file: %s", path)
-				err = ps.LoadPicture(!update, path, a)
-				if err != nil {
-					adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
-					fmt.Fprintln(os.Stderr, "Error loading picture:", err)
-					// os.Exit(1)
-				}
-			default:
-			}
-			return nil
-		})
-		stop <- true
-		fmt.Printf("Picture directory checked=%d loaded=%d found=%d\n", ps.Checked, ps.Loaded, ps.Found)
-	}
-	if verify {
-		err = store.VerifyPicture("Picture", fmt.Sprintf("%s,%d", dbidParameter, mapFnrParameter))
-		fmt.Println("Verify", err)
-	}
-
+	return nil
 }
 
 func writeMemProfile(file string) {
