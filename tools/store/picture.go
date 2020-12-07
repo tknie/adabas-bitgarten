@@ -8,7 +8,6 @@ import (
 	"image"
 	"image/jpeg"
 	"io/ioutil"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -126,7 +125,7 @@ func (pic *PictureBinary) ExtractExif() error {
 	buffer := bytes.NewBuffer(pic.Data.Media)
 	x, err := exif.Decode(buffer)
 	if err != nil {
-		log.Fatal("Error: ", err)
+		fmt.Println("Exif error: ", buffer.Len(), err)
 		return err
 	}
 	// fmt.Println(x)
