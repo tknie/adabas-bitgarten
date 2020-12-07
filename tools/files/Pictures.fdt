@@ -22,5 +22,13 @@
     2   , HE,   4,  B, NU        ; Height
     2   , WI,   4,  B, NU        ; Width
     2   , TG,   100,A, DE,MU     ; Tags
+   1    , EX                     ; Exif
+    2   , MO,   0,  A, NU        ; ExifModel
+    2   , MA,   0,  A, NU        ; ExifMake
+    2   , TA,   0,  A, NU        ; ExifTaken
+    2   , OT,   0,  A, NU        ; ExifOrigTime
+    2   , XD,   4,  B, NU        ; ExifXdimension
+    2   , YD,   4,  B, NU        ; ExifYdimension
+    2   , OR,   1,  B, NU        ; ExifOrientation
    1    , GE,   8,  B, NU,SY=TIME,CR,DT=E(UNIXTIME) ; Generated
    1    , UP,   8,  B, NU,SY=TIME,MU,DT=E(UNIXTIME) ; Updated

@@ -5,6 +5,7 @@ go 1.12
 require (
 	github.com/SoftwareAG/adabas-go-api v1.4.7
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
+	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
 	go.uber.org/zap v1.16.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb

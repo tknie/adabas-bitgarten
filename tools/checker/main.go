@@ -160,16 +160,21 @@ func analyzeDoublikats(a *adabas.Adabas) error {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
+	counter := uint64(0)
+	dupli := uint64(0)
 	for cursor.HasNextRecord() {
 		record, recErr := cursor.NextRecord()
 		if recErr != nil {
 			panic("Read error " + recErr.Error())
 		}
+		counter++
 		if record.Quantity != 1 {
 			//		record.DumpValues()
 			fmt.Println("quantity=", record.Quantity, record.HashFields["ChecksumPicture"])
+			dupli++
 		}
 	}
+	fmt.Println(dupli, "are duplicate of", counter)
 	return nil
 }
 

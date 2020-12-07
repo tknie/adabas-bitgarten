@@ -115,6 +115,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	switch suffix {
 	case "jpg", "jpeg", "gif":
 		p.MetaData.MIMEType = "image/" + suffix
+		p.ExtractExif()
 		terr := p.CreateThumbnail()
 		if terr != nil {
 			return terr
@@ -147,7 +148,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	p.Data.Md5 = p.MetaData.Md5
 	p.Data.Index = p.MetaData.Index
 	if !ps.ChecksumRun {
-		fmt.Println("Skip data storage")
+		fmt.Println("Store data storage")
 		// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
 		err = ps.storeData.UpdateData(p.Data, true)
 		if err != nil {

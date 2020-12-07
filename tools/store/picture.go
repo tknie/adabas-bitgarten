@@ -8,11 +8,14 @@ import (
 	"image"
 	"image/jpeg"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/rwcarlsen/goexif/exif"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -29,16 +32,23 @@ type PictureBinary struct {
 
 // PictureMetadata definition
 type PictureMetadata struct {
-	Index       uint64 `adabas:"#isn" json:"-"`
-	Md5         string `adabas:"Md5:key"`
-	PictureName string
-	Directory   string
-	Title       string
-	Fill        string
-	MIMEType    string
-	Option      string
-	Width       uint32
-	Height      uint32
+	Index           uint64 `adabas:"#isn" json:"-"`
+	Md5             string `adabas:"Md5:key"`
+	PictureName     string
+	Directory       string
+	Title           string
+	Fill            string
+	MIMEType        string
+	Option          string
+	Width           uint32
+	Height          uint32
+	ExifModel       string
+	ExifMake        string
+	ExifTaken       string
+	ExifOrigTime    string
+	ExifOrientation byte
+	ExifXdimension  uint32
+	ExifYdimension  uint32
 }
 
 // PictureData definition
@@ -110,6 +120,60 @@ func resizePicture(media []byte, max int) ([]byte, uint32, uint32, error) {
 		return nil, 0, 0, err
 	}
 	return buf.Bytes(), width, height, nil
+}
+
+func (pic *PictureBinary) ExtractExif() error {
+	buffer := bytes.NewBuffer(pic.Data.Media)
+	x, err := exif.Decode(buffer)
+	if err != nil {
+		log.Fatal("Error: ", err)
+		return err
+	}
+	// fmt.Println(x)
+	// var p Printer
+	// x.Walk(p)
+	camModel, err := x.Get(exif.Model) // normally, don't ignore errors!
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		model, _ := camModel.StringVal()
+		pic.MetaData.ExifModel = model
+	}
+
+	m, merr := x.Get(exif.Make)
+	if merr == nil {
+		ms, _ := m.StringVal()
+		pic.MetaData.ExifMake = ms
+	}
+
+	// Two convenience functions exist for date/time taken and GPS coords:
+	tm, tmerr := x.DateTime()
+	if tmerr == nil {
+		pic.MetaData.ExifTaken = tm.String()
+	}
+
+	tmo, tmoerr := x.Get(exif.DateTimeOriginal)
+	if tmoerr == nil {
+		pic.MetaData.ExifOrigTime = tmo.String()
+	}
+
+	o, oerr := x.Get(exif.Orientation)
+	if oerr == nil {
+		v, _ := o.Int(0)
+		pic.MetaData.ExifOrientation = byte(v)
+	}
+
+	xd, xderr := x.Get(exif.PixelXDimension)
+	if xderr == nil {
+		v, _ := xd.Int(0)
+		pic.MetaData.ExifXdimension = uint32(v)
+	}
+	yd, yderr := x.Get(exif.PixelYDimension)
+	if yderr == nil {
+		v, _ := yd.Int(0)
+		pic.MetaData.ExifYdimension = uint32(v)
+	}
+	return nil
 }
 
 // CreateThumbnail create thumbnail
