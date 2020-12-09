@@ -71,6 +71,9 @@ func (pic *PictureBinary) LoadFile() error {
 	defer f.Close()
 	fi, err := f.Stat()
 	pic.Data = &PictureData{}
+	if fi.Size() > 10000000 {
+		return fmt.Errorf("File tooo big")
+	}
 	pic.Data.Media = make([]byte, fi.Size())
 	var n int
 	n, err = f.Read(pic.Data.Media)
