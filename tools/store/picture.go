@@ -24,9 +24,10 @@ import (
 
 // PictureBinary definition
 type PictureBinary struct {
-	FileName string `xml:"-" json:"-"`
-	MetaData *PictureMetadata
-	Data     *PictureData
+	FileName    string `xml:"-" json:"-"`
+	MetaData    *PictureMetadata
+	MaxBlobSize int64 // 50000000
+	Data        *PictureData
 }
 
 // PictureMetadata definition
@@ -34,6 +35,7 @@ type PictureMetadata struct {
 	Index           uint64 `adabas:"#isn" json:"-"`
 	Md5             string `adabas:"Md5:key"`
 	PictureName     string
+	PictureHost     string
 	Directory       string
 	Title           string
 	Fill            string
@@ -71,7 +73,7 @@ func (pic *PictureBinary) LoadFile() error {
 	defer f.Close()
 	fi, err := f.Stat()
 	pic.Data = &PictureData{}
-	if fi.Size() > 50000000 {
+	if fi.Size() > pic.MaxBlobSize {
 		return fmt.Errorf("File tooo big")
 	}
 	pic.Data.Media = make([]byte, fi.Size())

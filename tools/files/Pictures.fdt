@@ -4,7 +4,9 @@
 ;*
 ;*************************************************************************/
 ;
-   1    , PN,   0,  A, NU,DE     ; PictureName
+   1    , PD   
+    2   , PN,   0,  A, NU,DE     ; PictureName
+    2   , PH,   0,  A, NU,DE     ; PictureHost
    1    , DN,   0,  A, NU,DE     ; Directory
    1    , M5,   0,  A, NU,DE,UQ  ; Md5
    1    , CG                     ; Checksum

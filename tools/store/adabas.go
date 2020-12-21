@@ -22,6 +22,16 @@ type PictureConnection struct {
 	Found       uint64
 	Loaded      uint64
 	Checked     uint64
+	MaxBlobSize int64
+}
+
+var hostname = "Unknown"
+
+func init() {
+	host, err := os.Hostname()
+	if err == nil {
+		hostname = host
+	}
 }
 
 // InitStorePictureBinary init store picture connection
@@ -104,7 +114,9 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	var re = regexp.MustCompile(`(?m)([^/]*)/.*`)
 	d := re.FindStringSubmatch(pictureName)[1]
 	// fmt.Println("Directory: ", d)
-	p := PictureBinary{FileName: fileName, MetaData: &PictureMetadata{PictureName: pictureName, Directory: d, Md5: pictureKey}}
+	p := PictureBinary{FileName: fileName,
+		MetaData: &PictureMetadata{PictureName: pictureName, Directory: d,
+			PictureHost: hostname, Md5: pictureKey}, MaxBlobSize: ps.MaxBlobSize}
 	err = p.LoadFile()
 	if err != nil {
 		return err
@@ -142,7 +154,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	}
 	// fmt.Println("Stored metadata into ISN=", p.MetaData.Index)
 	if err != nil {
-		fmt.Println("Error storing record metadata:", err)
+		fmt.Printf("Error storing record metadata: %v %#v", err, p.MetaData)
 		return err
 	}
 	p.Data.Md5 = p.MetaData.Md5
@@ -220,7 +232,7 @@ func verifyPictureRecord(record *adabas.Record, x interface{}) error {
 	if md != smd {
 		fmt.Printf("MD5 data=<%s> expected=<%s>\n", md, smd)
 		fmt.Println("Record checksum error", record.Isn)
-		os.Exit(255)
+		return fmt.Errorf("Record checksum error")
 	}
 	return nil
 }

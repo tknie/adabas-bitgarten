@@ -123,6 +123,7 @@ func main() {
 	var dbidParameter string
 	var mapFnrParameter int
 	var deleteIsn int
+	var binarySize int
 	var verify bool
 	var update bool
 	var checksumRun bool
@@ -139,6 +140,7 @@ func main() {
 	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
 	flag.BoolVar(&checksumRun, "c", false, "Checksum run, no data load")
 	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
+	flag.IntVar(&binarySize, "b", 50000000, "Maximum binary blob size")
 	flag.Parse()
 
 	if *cpuprofile != "" {
@@ -178,6 +180,7 @@ func main() {
 	defer ps.Close()
 
 	ps.ChecksumRun = checksumRun
+	ps.MaxBlobSize = int64(binarySize)
 
 	if deleteIsn > 0 {
 		err := ps.DeleteIsn(a, adatypes.Isn(deleteIsn))
@@ -220,6 +223,7 @@ func main() {
 			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d\n", time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found)
 		}
 
+		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
 		stop := schedule(output, 5*time.Second)
 		err = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
 			if info == nil || info.IsDir() {
@@ -242,11 +246,16 @@ func main() {
 			return nil
 		})
 		stop <- true
-		fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d\n", time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found)
+		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d\n", time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found)
 	}
 	if verify {
-		err = store.VerifyPicture("Picture", fmt.Sprintf("%s,%d", dbidParameter, mapFnrParameter))
-		fmt.Println("Verify", err)
+		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
+		err = store.VerifyPicture("PictureData", fmt.Sprintf("%s,%d", dbidParameter, mapFnrParameter))
+		if err != nil {
+			fmt.Printf("%s Error during verify of database picture content: %v\n", time.Now().Format(timeFormat), err)
+			return
+		}
+		fmt.Printf("%s finished verify of database picture content\n", time.Now().Format(timeFormat))
 	}
 
 }
