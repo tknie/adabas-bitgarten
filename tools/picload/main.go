@@ -220,7 +220,8 @@ func main() {
 	}
 	if pictureDirectory != "" {
 		output := func() {
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d\n", time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found)
+			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d\n",
+				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Errors)
 		}
 
 		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
@@ -239,14 +240,21 @@ func main() {
 				if err != nil {
 					adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
 					fmt.Fprintln(os.Stderr, "Error loading picture:", err)
+					fmt.Fprintln(os.Stderr, "Error >:", err.Error())
 					// os.Exit(1)
+					if strings.HasPrefix(err.Error(), "File tooo big") {
+						ps.ToBig++
+					} else {
+						ps.Errors++
+					}
 				}
 			default:
 			}
 			return nil
 		})
 		stop <- true
-		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d\n", time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found)
+		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d\n",
+			time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Errors)
 	}
 	if verify {
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))

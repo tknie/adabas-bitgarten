@@ -22,6 +22,8 @@ type PictureConnection struct {
 	Found       uint64
 	Loaded      uint64
 	Checked     uint64
+	ToBig       uint64
+	Errors      uint64
 	MaxBlobSize int64
 }
 
