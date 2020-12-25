@@ -120,17 +120,18 @@ func resizePicture(media []byte, max int) ([]byte, uint32, uint32, error) {
 	buf := new(bytes.Buffer)
 	err = jpeg.Encode(buf, newImage, nil)
 	if err != nil {
-		fmt.Println("Error generating thumbnail", err)
+		// fmt.Println("Error generating thumbnail", err)
 		return nil, 0, 0, err
 	}
 	return buf.Bytes(), width, height, nil
 }
 
+// ExtractExif extract EXIF data
 func (pic *PictureBinary) ExtractExif() error {
 	buffer := bytes.NewBuffer(pic.Data.Media)
 	x, err := exif.Decode(buffer)
 	if err != nil {
-		fmt.Println("Exif error: ", buffer.Len(), err)
+		// fmt.Println("Exif error: ", buffer.Len(), err)
 		return err
 	}
 	// fmt.Println(x)

@@ -23,7 +23,8 @@ type PictureConnection struct {
 	Loaded      uint64
 	Checked     uint64
 	ToBig       uint64
-	Errors      uint64
+	Errors      map[string]uint64
+	NrErrors    uint64
 	MaxBlobSize int64
 }
 
