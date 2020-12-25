@@ -39,7 +39,8 @@ func init() {
 
 // InitStorePictureBinary init store picture connection
 func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error) {
-	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false}
+	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false,
+		Errors: make(map[string]uint64)}
 	ps.conn, err = adabas.NewConnection("acj;map")
 	if err != nil {
 		return nil, err
