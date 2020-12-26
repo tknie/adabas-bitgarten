@@ -20,7 +20,7 @@
     2   , FI,   1,  B, NU        ; Fill
     2   , DE,   8,  B, DE        ; Date
     2   , TY,   0,  A, NU        ; MIMEType
-    2   , OP,   0,  A, NU        ; Option
+    2   , OP,   0,  A, DE,NU     ; Option
     2   , HE,   4,  B, NU        ; Height
     2   , WI,   4,  B, NU        ; Width
     2   , TG,   100,A, DE,MU     ; Tags

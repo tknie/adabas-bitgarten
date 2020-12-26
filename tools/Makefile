@@ -4,9 +4,10 @@ GOOS           ?= $(shell $(GO) env GOOS)
 
 
 BIN             = $(CURDIR)/bin/$(GOOS)_$(GOARCH)
-EXECS           = $(BIN)/album $(BIN)/picload $(BIN)/reader $(BIN)/thumbnail $(BIN)/checker $(BIN)/cleaner
+EXECS           = $(BIN)/album $(BIN)/picload $(BIN)/reader $(BIN)/thumbnail \
+	$(BIN)/checkout $(BIN)/checker $(BIN)/cleaner
 OBJECTS         = album/main.go picload/main.go reader/main.go \
-   store/picture.go store/store.go thumbnail/main.go \
+   store/picture.go store/store.go thumbnail/main.go checkout/main.go \
    store/adabas.go store/worker.go store/album.go checker/main.go cleaner/main.go
 CGO_CFLAGS      = $(if $(ACLDIR),-I$(ACLDIR)/inc,)
 CGO_LDFLAGS     = $(if $(ACLDIR),-L$(ACLDIR)/lib -ladalnkx,)

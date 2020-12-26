@@ -26,6 +26,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -172,24 +173,19 @@ func (checker *checker) analyzeDoublikats() (err error) {
 		panic("Read error " + err.Error())
 	}
 	counter := uint64(0)
-	dupli := uint64(0)
 	for cursor.HasNextRecord() && (checker.limit == 0 || counter < checker.limit) {
 		record, recErr := cursor.NextRecord()
 		if recErr != nil {
 			panic("Read error " + recErr.Error())
 		}
 		counter++
-		if record.Quantity != 1 {
-			//		record.DumpValues()
-			fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
-			dupli++
-			err = checker.listDuplikats(record.HashFields["ChecksumPicture"].String())
-			if err != nil {
-				return err
-			}
+		fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
+		err = checker.listDuplikats(record.HashFields["ChecksumPicture"].String())
+		if err != nil {
+			return err
 		}
 	}
-	fmt.Printf("There are %06d duplicate of %06d\n", dupli, counter)
+	fmt.Printf("There are %06d records\n", counter)
 	return nil
 }
 
@@ -199,7 +195,7 @@ func (checker *checker) listDuplikats(checksum string) error {
 		checker.conn.Close()
 		return rerr
 	}
-	rerr = readCheck.QueryFields("PictureName")
+	rerr = readCheck.QueryFields("PictureName,Option")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
@@ -209,44 +205,55 @@ func (checker *checker) listDuplikats(checksum string) error {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
-	var isnList []adatypes.Isn
+	first := true
 	for cursor.HasNextRecord() {
 		record, recErr := cursor.NextRecord()
 		if recErr != nil {
 			panic("Read error " + recErr.Error())
 		}
-		if isnList == nil {
-			isnList = make([]adatypes.Isn, 0)
+		currentOption := strings.Trim(record.HashFields["Option"].String(), " ")
+		if first {
+			switch currentOption {
+			case "":
+				err = checker.updateOption(record, "original")
+			case "original":
+			default:
+				fmt.Println(currentOption, "should be original")
+			}
+			first = false
 		} else {
-			isnList = append(isnList, record.Isn)
+			switch currentOption {
+			case "":
+				err = checker.updateOption(record, "duplicate")
+			case "duplicate":
+			default:
+				fmt.Println(currentOption, "should be original")
+			}
 		}
-		fmt.Printf("  ISN=%06d %s\n", record.Isn, record.HashFields["PictureName"].String())
-
+		if err != nil {
+			return err
+		}
+		fmt.Printf("  ISN=%06d %s -> %s\n", record.Isn, record.HashFields["PictureName"].String(), record.HashFields["Option"])
 	}
-	fmt.Println(isnList)
-	if checker.deleteDuplikate {
-		return checker.deleteIsns(isnList)
-	}
-	return nil
+	return checker.conn.EndTransaction()
 }
 
-func (checker *checker) deleteIsns(isnList []adatypes.Isn) error {
-	deleteRequest, err := checker.conn.CreateMapDeleteRequest("PictureMetadata")
+func (checker *checker) updateOption(record *adabas.Record, option string) error {
+	fmt.Println(record.HashFields["PictureName"], record.HashFields["Option"], option)
+	vErr := record.SetValue("Option", option)
+	if vErr != nil {
+		return vErr
+	}
+	sReq, err := checker.conn.CreateMapStoreRequest("PictureMetadata")
 	if err != nil {
-		checker.conn.Close()
 		return err
 	}
-	for _, isn := range isnList {
-		err := deleteRequest.Delete(isn)
-		if err != nil {
-			return err
-		}
-		err = deleteRequest.EndTransaction()
-		if err != nil {
-			return err
-		}
+	err = sReq.Store(record)
+	if err != nil {
+		return err
 	}
-	return nil
+	err = sReq.EndTransaction()
+	return err
 }
 
 func writeMemProfile(file string) {
