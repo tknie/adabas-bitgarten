@@ -260,6 +260,9 @@ func (checker *checker) listDuplikats(checksum string) error {
 			switch currentOption {
 			case "":
 				err = checker.updateOption(record, "original")
+				if err != nil {
+					panic("Update error" + err.Error())
+				}
 			case "original":
 			default:
 				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
@@ -269,6 +272,9 @@ func (checker *checker) listDuplikats(checksum string) error {
 			switch currentOption {
 			case "":
 				err = checker.updateOption(record, "duplicate")
+				if err != nil {
+					panic("Update error" + err.Error())
+				}
 			case "duplicate":
 			default:
 				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
@@ -283,20 +289,23 @@ func (checker *checker) listDuplikats(checksum string) error {
 }
 
 func (checker *checker) updateOption(record *adabas.Record, option string) error {
-	// fmt.Println(record.HashFields["PictureName"], record.HashFields["Option"], option)
+	fmt.Println("Updateing...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
 	vErr := record.SetValue("Option", option)
 	if vErr != nil {
 		return vErr
 	}
 	sReq, err := checker.conn.CreateMapStoreRequest("PictureMetadata")
 	if err != nil {
+		fmt.Println("Map Store error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
 		return err
 	}
-	err = sReq.Store(record)
+	err = sReq.Update(record)
 	if err != nil {
+		fmt.Println("Update error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
 		return err
 	}
 	err = sReq.EndTransaction()
+	fmt.Println("End transaction...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
 	return err
 }
 
