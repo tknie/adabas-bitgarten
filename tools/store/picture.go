@@ -84,6 +84,7 @@ func (pic *PictureBinary) LoadFile() error {
 		return err
 	}
 	pic.Data.ChecksumPicture = createMd5(pic.Data.Media)
+	// pic.MetaData.ChecksumPicture = pic.Data.ChecksumPicture
 	adatypes.Central.Log.Debugf("PictureBinary checksum %s size=%d len=%d", pic.Data.ChecksumPicture, fi.Size(), len(pic.Data.Media))
 
 	return nil

@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"time"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -42,6 +43,8 @@ type checker struct {
 	limit           uint64
 	deleteDuplikate bool
 }
+
+var timeFormat = "2006-01-02 15:04:05"
 
 func init() {
 	hostname, _ = os.Hostname()
@@ -151,41 +154,82 @@ func main() {
 	}
 }
 
+func schedule(what func(), delay time.Duration) chan bool {
+	stop := make(chan bool)
+
+	go func() {
+		for {
+			what()
+			select {
+			case <-time.After(delay):
+			case <-stop:
+				return
+			}
+		}
+	}()
+
+	return stop
+}
+
+func (checker *checker) deleteIsn(isn adatypes.Isn) error {
+	deleteRequest, err := checker.conn.CreateMapDeleteRequest("PictureMetadata")
+	if err != nil {
+		checker.conn.Close()
+		return err
+	}
+	err = deleteRequest.Delete(isn)
+	if err != nil {
+		return err
+	}
+	return deleteRequest.EndTransaction()
+}
+
 func (checker *checker) analyzeDoublikats() (err error) {
 	checker.conn, err = adabas.NewConnection("acj;map")
 	if err != nil {
 		return err
 	}
-	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureData")
+	defer checker.conn.Close()
+	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureMetadata")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
 	readCheck.Limit = 0
-	rerr = readCheck.QueryFields("ChecksumPicture")
+	rerr = readCheck.QueryFields("ChecksumPicture,Option")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
-	cursor, err := readCheck.HistogramByCursoring("ChecksumPicture")
-	if err != nil {
-		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
-		panic("Read error " + err.Error())
-	}
 	counter := uint64(0)
-	for cursor.HasNextRecord() && (checker.limit == 0 || counter < checker.limit) {
-		record, recErr := cursor.NextRecord()
-		if recErr != nil {
-			panic("Read error " + recErr.Error())
+	output := func() {
+		fmt.Printf("%s Picture counter=%d\n",
+			time.Now().Format(timeFormat), counter)
+	}
+	stop := schedule(output, 15*time.Second)
+	result, err := readCheck.ReadPhysicalSequenceStream(func(record *adabas.Record, x interface{}) error {
+		if strings.Trim(record.HashFields["ChecksumPicture"].String(), " ") == "" {
+			fmt.Println("Checksum picture missing: ", record.Isn, " removing ...")
+			return checker.deleteIsn(record.Isn)
 		}
-		counter++
-		fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
+		if strings.Trim(record.HashFields["Option"].String(), " ") == "" {
+			fmt.Println("Empty option found at", record.Isn)
+		}
+
+		// fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
 		err = checker.listDuplikats(record.HashFields["ChecksumPicture"].String())
 		if err != nil {
 			return err
 		}
+		counter++
+		return nil
+	}, nil)
+	if err != nil {
+		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
+		panic("Read error " + err.Error())
 	}
-	fmt.Printf("There are %06d records\n", counter)
+	stop <- true
+	fmt.Printf("There are %06d records -> %d\n", counter, result.NrRecords())
 	return nil
 }
 
@@ -218,7 +262,7 @@ func (checker *checker) listDuplikats(checksum string) error {
 				err = checker.updateOption(record, "original")
 			case "original":
 			default:
-				fmt.Println(currentOption, "should be original")
+				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
 			}
 			first = false
 		} else {
@@ -227,19 +271,19 @@ func (checker *checker) listDuplikats(checksum string) error {
 				err = checker.updateOption(record, "duplicate")
 			case "duplicate":
 			default:
-				fmt.Println(currentOption, "should be original")
+				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
 			}
 		}
 		if err != nil {
 			return err
 		}
-		fmt.Printf("  ISN=%06d %s -> %s\n", record.Isn, record.HashFields["PictureName"].String(), record.HashFields["Option"])
+		// fmt.Printf("  ISN=%06d %s -> %s\n", record.Isn, record.HashFields["PictureName"].String(), record.HashFields["Option"])
 	}
 	return checker.conn.EndTransaction()
 }
 
 func (checker *checker) updateOption(record *adabas.Record, option string) error {
-	fmt.Println(record.HashFields["PictureName"], record.HashFields["Option"], option)
+	// fmt.Println(record.HashFields["PictureName"], record.HashFields["Option"], option)
 	vErr := record.SetValue("Option", option)
 	if vErr != nil {
 		return vErr
