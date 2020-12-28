@@ -68,6 +68,10 @@ func (cc processStep) command() string {
 
 type checker struct {
 	conn            *adabas.Connection
+	read            *adabas.ReadRequest
+	list            *adabas.ReadRequest
+	store           *adabas.StoreRequest
+	delete          *adabas.DeleteRequest
 	adabas          *adabas.Adabas
 	limit           uint64
 	deleteDuplikate bool
@@ -201,19 +205,21 @@ func schedule(what func(), delay time.Duration) chan bool {
 	return stop
 }
 
-func (checker *checker) deleteIsn(isn adatypes.Isn) error {
+func (checker *checker) deleteIsn(isn adatypes.Isn) (err error) {
 	checker.step = delete
-	deleteRequest, err := checker.conn.CreateMapDeleteRequest("PictureMetadata")
-	if err != nil {
-		checker.conn.Close()
-		return err
+	if checker.delete == nil {
+		checker.delete, err = checker.conn.CreateMapDeleteRequest("PictureMetadata")
+		if err != nil {
+			checker.conn.Close()
+			return err
+		}
 	}
-	err = deleteRequest.Delete(isn)
+	err = checker.delete.Delete(isn)
 	if err != nil {
 		return err
 	}
 	checker.step = deleteEnd
-	return deleteRequest.EndTransaction()
+	return checker.delete.EndTransaction()
 }
 
 func (checker *checker) analyzeDoublikats() (err error) {
@@ -223,16 +229,18 @@ func (checker *checker) analyzeDoublikats() (err error) {
 		return err
 	}
 	defer checker.conn.Close()
-	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureMetadata")
-	if rerr != nil {
-		checker.conn.Close()
-		return rerr
-	}
-	readCheck.Limit = checker.limit
-	rerr = readCheck.QueryFields("ChecksumPicture,Option")
-	if rerr != nil {
-		checker.conn.Close()
-		return rerr
+	if checker.read == nil {
+		checker.read, err = checker.conn.CreateMapReadRequest("PictureMetadata")
+		if err != nil {
+			checker.conn.Close()
+			return err
+		}
+		checker.read.Limit = checker.limit
+		err = checker.read.QueryFields("ChecksumPicture,Option")
+		if err != nil {
+			checker.conn.Close()
+			return err
+		}
 	}
 	counter := uint64(0)
 	output := func() {
@@ -240,7 +248,7 @@ func (checker *checker) analyzeDoublikats() (err error) {
 			time.Now().Format(timeFormat), counter, checker.step.command())
 	}
 	stop := schedule(output, 15*time.Second)
-	result, err := readCheck.ReadPhysicalSequenceStream(func(record *adabas.Record, x interface{}) error {
+	result, err := checker.read.ReadPhysicalSequenceStream(func(record *adabas.Record, x interface{}) error {
 		checker.step = readStream
 		if strings.Trim(record.HashFields["ChecksumPicture"].String(), " ") == "" {
 			fmt.Println("Checksum picture missing: ", record.Isn, " removing ...")
@@ -267,19 +275,22 @@ func (checker *checker) analyzeDoublikats() (err error) {
 	return nil
 }
 
-func (checker *checker) listDuplikats(checksum string) error {
+func (checker *checker) listDuplikats(checksum string) (err error) {
 	checker.step = listDuplikats
-	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureMetadata")
-	if rerr != nil {
-		checker.conn.Close()
-		return rerr
+	if checker.list == nil {
+		checker.list, err = checker.conn.CreateMapReadRequest("PictureMetadata")
+		if err != nil {
+			checker.conn.Close()
+			return
+		}
+		err = checker.list.QueryFields("PictureName,Option")
+		if err != nil {
+			checker.conn.Close()
+			return
+		}
+
 	}
-	rerr = readCheck.QueryFields("PictureName,Option")
-	if rerr != nil {
-		checker.conn.Close()
-		return rerr
-	}
-	cursor, err := readCheck.ReadLogicalWithCursoring("ChecksumPicture=" + checksum)
+	cursor, err := checker.list.ReadLogicalWithCursoring("ChecksumPicture=" + checksum)
 	if err != nil {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
@@ -327,22 +338,24 @@ func (checker *checker) listDuplikats(checksum string) error {
 func (checker *checker) updateOption(record *adabas.Record, option string) error {
 	checker.step = updateDuplikatsRead
 	// fmt.Println("Updateing...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
-	vErr := record.SetValue("Option", option)
-	if vErr != nil {
-		return vErr
-	}
-	sReq, err := checker.conn.CreateMapStoreRequest("PictureMetadata")
+	err := record.SetValue("Option", option)
 	if err != nil {
-		fmt.Println("Map Store error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
 		return err
 	}
-	err = sReq.Update(record)
+	if checker.store == nil {
+		checker.store, err = checker.conn.CreateMapStoreRequest("PictureMetadata")
+		if err != nil {
+			fmt.Println("Map Store error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
+			return err
+		}
+	}
+	err = checker.store.Update(record)
 	if err != nil {
 		fmt.Println("Update error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
 		return err
 	}
 	checker.step = updateDuplikats
-	err = sReq.EndTransaction()
+	err = checker.store.EndTransaction()
 	// fmt.Println("End transaction...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
 	return err
 }
