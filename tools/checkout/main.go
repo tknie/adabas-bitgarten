@@ -37,11 +37,41 @@ import (
 
 var hostname string
 
+type processStep uint
+
+const (
+	begin processStep = iota
+	analyzeDoublikats
+	listDuplikats
+	listDuplikatsRead
+	updateDuplikats
+	updateDuplikatsRead
+	initialize
+	readStream
+	delete
+	deleteEnd
+	end
+)
+
+var processSteps = []string{"Begin", "analyze", "list", "list read", "update", "update read", "init", "read stream", "delete", "delete ET", "end"}
+
+func (cc processStep) code() [2]byte {
+	var code [2]byte
+	codeConst := []byte(processSteps[cc])
+	copy(code[:], codeConst[0:2])
+	return code
+}
+
+func (cc processStep) command() string {
+	return processSteps[cc]
+}
+
 type checker struct {
 	conn            *adabas.Connection
 	adabas          *adabas.Adabas
 	limit           uint64
 	deleteDuplikate bool
+	step            processStep
 }
 
 var timeFormat = "2006-01-02 15:04:05"
@@ -58,7 +88,7 @@ func init() {
 		level = zapcore.InfoLevel
 	}
 
-	err := initLogLevelWithFile("checker.log", level)
+	err := initLogLevelWithFile("checkout.log", level)
 	if err != nil {
 		fmt.Println("Error initialize logging")
 		os.Exit(255)
@@ -147,7 +177,7 @@ func main() {
 	}
 	adabas.AddGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
 	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	c := &checker{adabas: a, limit: uint64(limit), deleteDuplikate: delete}
+	c := &checker{adabas: a, limit: uint64(limit), deleteDuplikate: delete, step: initialize}
 	err = c.analyzeDoublikats()
 	if err != nil {
 		fmt.Println("Error anaylzing douplikats", err)
@@ -172,6 +202,7 @@ func schedule(what func(), delay time.Duration) chan bool {
 }
 
 func (checker *checker) deleteIsn(isn adatypes.Isn) error {
+	checker.step = delete
 	deleteRequest, err := checker.conn.CreateMapDeleteRequest("PictureMetadata")
 	if err != nil {
 		checker.conn.Close()
@@ -181,10 +212,12 @@ func (checker *checker) deleteIsn(isn adatypes.Isn) error {
 	if err != nil {
 		return err
 	}
+	checker.step = deleteEnd
 	return deleteRequest.EndTransaction()
 }
 
 func (checker *checker) analyzeDoublikats() (err error) {
+	checker.step = analyzeDoublikats
 	checker.conn, err = adabas.NewConnection("acj;map")
 	if err != nil {
 		return err
@@ -195,7 +228,7 @@ func (checker *checker) analyzeDoublikats() (err error) {
 		checker.conn.Close()
 		return rerr
 	}
-	readCheck.Limit = 0
+	readCheck.Limit = checker.limit
 	rerr = readCheck.QueryFields("ChecksumPicture,Option")
 	if rerr != nil {
 		checker.conn.Close()
@@ -203,11 +236,12 @@ func (checker *checker) analyzeDoublikats() (err error) {
 	}
 	counter := uint64(0)
 	output := func() {
-		fmt.Printf("%s Picture counter=%d\n",
-			time.Now().Format(timeFormat), counter)
+		fmt.Printf("%s Picture counter=%d -> %s\n",
+			time.Now().Format(timeFormat), counter, checker.step.command())
 	}
 	stop := schedule(output, 15*time.Second)
 	result, err := readCheck.ReadPhysicalSequenceStream(func(record *adabas.Record, x interface{}) error {
+		checker.step = readStream
 		if strings.Trim(record.HashFields["ChecksumPicture"].String(), " ") == "" {
 			fmt.Println("Checksum picture missing: ", record.Isn, " removing ...")
 			return checker.deleteIsn(record.Isn)
@@ -234,6 +268,7 @@ func (checker *checker) analyzeDoublikats() (err error) {
 }
 
 func (checker *checker) listDuplikats(checksum string) error {
+	checker.step = listDuplikats
 	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureMetadata")
 	if rerr != nil {
 		checker.conn.Close()
@@ -251,6 +286,7 @@ func (checker *checker) listDuplikats(checksum string) error {
 	}
 	first := true
 	for cursor.HasNextRecord() {
+		checker.step = listDuplikatsRead
 		record, recErr := cursor.NextRecord()
 		if recErr != nil {
 			panic("Read error " + recErr.Error())
@@ -289,7 +325,8 @@ func (checker *checker) listDuplikats(checksum string) error {
 }
 
 func (checker *checker) updateOption(record *adabas.Record, option string) error {
-	fmt.Println("Updateing...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
+	checker.step = updateDuplikatsRead
+	// fmt.Println("Updateing...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
 	vErr := record.SetValue("Option", option)
 	if vErr != nil {
 		return vErr
@@ -304,8 +341,9 @@ func (checker *checker) updateOption(record *adabas.Record, option string) error
 		fmt.Println("Update error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
 		return err
 	}
+	checker.step = updateDuplikats
 	err = sReq.EndTransaction()
-	fmt.Println("End transaction...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
+	// fmt.Println("End transaction...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
 	return err
 }
 
