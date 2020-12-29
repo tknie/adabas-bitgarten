@@ -355,11 +355,21 @@ func (checker *checker) tagInfoVideo(isn adatypes.Isn, filename string) error {
 		return err
 	}
 	data := v.(map[string]interface{})
-	t := data["format"]
+	t, ok := data["format"]
+	if !ok {
+		return nil
+	}
 	tags := t.(map[string]interface{})
-	ctag := tags["tags"]
+	ctag, ok := tags["tags"]
+	if !ok {
+		return nil
+	}
 	ct := ctag.(map[string]interface{})
-	ctime := ct["creation_time"].(string)
+	cts, ok := ct["creation_time"]
+	if !ok {
+		return nil
+	}
+	ctime := cts.(string)
 	createTime, tErr := time.Parse(time.RFC3339, ctime)
 	if tErr != nil {
 		return tErr
