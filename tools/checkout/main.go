@@ -23,11 +23,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"path"
 	"runtime"
 	"runtime/pprof"
 	"strings"
 	"time"
+	"tux-lobload/store"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -39,13 +42,13 @@ var hostname string
 
 type processStep uint
 
+const timeParseFormat = "2006-01-02 15:04:05 -0700 MST"
+
 const (
 	begin processStep = iota
 	analyzeDoublikats
 	listDuplikats
 	listDuplikatsRead
-	updateDuplikats
-	updateDuplikatsRead
 	initialize
 	readStream
 	delete
@@ -53,7 +56,7 @@ const (
 	end
 )
 
-var processSteps = []string{"Begin", "analyze", "list", "list read", "update", "update read", "init", "read stream", "delete", "delete ET", "end"}
+var processSteps = []string{"Begin", "analyze", "list", "list read", "init", "read stream", "delete", "delete ET", "end"}
 
 func (cc processStep) code() [2]byte {
 	var code [2]byte
@@ -67,15 +70,13 @@ func (cc processStep) command() string {
 }
 
 type checker struct {
-	conn            *adabas.Connection
-	read            *adabas.ReadRequest
-	list            *adabas.ReadRequest
-	store           *adabas.StoreRequest
-	delete          *adabas.DeleteRequest
-	adabas          *adabas.Adabas
-	limit           uint64
-	deleteDuplikate bool
-	step            processStep
+	conn      *adabas.Connection
+	read      *adabas.ReadRequest
+	list      *adabas.ReadRequest
+	adabas    *adabas.Adabas
+	directory string
+	limit     uint64
+	step      processStep
 }
 
 var timeFormat = "2006-01-02 15:04:05"
@@ -144,15 +145,32 @@ func main() {
 	var dbidParameter string
 	var mapFnrParameter int
 	var limit int
-	var delete bool
+	var directory string
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
 	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
 	flag.IntVar(&limit, "l", 10, "Maximum records to read (0 is all)")
-	flag.BoolVar(&delete, "D", false, "Delete duplicate entries")
+	flag.StringVar(&directory, "D", "", "Directory storing files to")
 	flag.Parse()
+
+	if directory == "" {
+		fmt.Println("Please enter directory ...")
+		flag.Usage()
+		return
+	}
+	if fi, err := os.Stat(directory); err != nil {
+		fmt.Println("Error opening directory ..." + directory + " : " + err.Error())
+		flag.Usage()
+		return
+	} else {
+		if !fi.IsDir() {
+			fmt.Println("Please enter directory, not file ...")
+			flag.Usage()
+			return
+		}
+	}
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -181,8 +199,8 @@ func main() {
 	}
 	adabas.AddGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
 	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	c := &checker{adabas: a, limit: uint64(limit), deleteDuplikate: delete, step: initialize}
-	err = c.analyzeDoublikats()
+	c := &checker{adabas: a, limit: uint64(limit), step: initialize, directory: directory}
+	err = c.checkoutOriginals()
 	if err != nil {
 		fmt.Println("Error anaylzing douplikats", err)
 	}
@@ -205,42 +223,23 @@ func schedule(what func(), delay time.Duration) chan bool {
 	return stop
 }
 
-func (checker *checker) deleteIsn(isn adatypes.Isn) (err error) {
-	checker.step = delete
-	if checker.delete == nil {
-		checker.delete, err = checker.conn.CreateMapDeleteRequest("PictureMetadata")
-		if err != nil {
-			checker.conn.Close()
-			return err
-		}
-	}
-	err = checker.delete.Delete(isn)
-	if err != nil {
-		return err
-	}
-	checker.step = deleteEnd
-	return checker.delete.EndTransaction()
-}
-
-func (checker *checker) analyzeDoublikats() (err error) {
+func (checker *checker) checkoutOriginals() (err error) {
 	checker.step = analyzeDoublikats
 	checker.conn, err = adabas.NewConnection("acj;map")
 	if err != nil {
 		return err
 	}
 	defer checker.conn.Close()
-	if checker.read == nil {
-		checker.read, err = checker.conn.CreateMapReadRequest("PictureMetadata")
-		if err != nil {
-			checker.conn.Close()
-			return err
-		}
-		checker.read.Limit = checker.limit
-		err = checker.read.QueryFields("ChecksumPicture,Option")
-		if err != nil {
-			checker.conn.Close()
-			return err
-		}
+	checker.read, err = checker.conn.CreateMapReadRequest("PictureMetadata")
+	if err != nil {
+		checker.conn.Close()
+		return err
+	}
+	checker.read.Limit = checker.limit
+	err = checker.read.QueryFields("PictureName,Option,ExifTaken,ExifOrigTime")
+	if err != nil {
+		checker.conn.Close()
+		return err
 	}
 	counter := uint64(0)
 	output := func() {
@@ -248,18 +247,11 @@ func (checker *checker) analyzeDoublikats() (err error) {
 			time.Now().Format(timeFormat), counter, checker.step.command())
 	}
 	stop := schedule(output, 15*time.Second)
-	result, err := checker.read.ReadPhysicalSequenceStream(func(record *adabas.Record, x interface{}) error {
+	result, err := checker.read.ReadLogicalWithStream("Option=original", func(record *adabas.Record, x interface{}) error {
 		checker.step = readStream
-		if strings.Trim(record.HashFields["ChecksumPicture"].String(), " ") == "" {
-			fmt.Println("Checksum picture missing: ", record.Isn, " removing ...")
-			return checker.deleteIsn(record.Isn)
-		}
-		if strings.Trim(record.HashFields["Option"].String(), " ") == "" {
-			fmt.Println("Empty option found at", record.Isn)
-		}
 
 		// fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
-		err = checker.listDuplikats(record.HashFields["ChecksumPicture"].String())
+		err = checker.writeFile(record)
 		if err != nil {
 			return err
 		}
@@ -275,89 +267,70 @@ func (checker *checker) analyzeDoublikats() (err error) {
 	return nil
 }
 
-func (checker *checker) listDuplikats(checksum string) (err error) {
+func (checker *checker) writeFile(record *adabas.Record) (err error) {
 	checker.step = listDuplikats
 	if checker.list == nil {
-		checker.list, err = checker.conn.CreateMapReadRequest("PictureMetadata")
+		checker.list, err = checker.conn.CreateMapReadRequest(&store.PictureData{})
 		if err != nil {
 			checker.conn.Close()
 			return
 		}
-		err = checker.list.QueryFields("PictureName,Option")
+		err = checker.list.QueryFields("ChecksumPicture,Media")
 		if err != nil {
 			checker.conn.Close()
 			return
 		}
 
 	}
-	cursor, err := checker.list.ReadLogicalWithCursoring("ChecksumPicture=" + checksum)
+	result, err := checker.list.ReadISN(record.Isn)
 	if err != nil {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
-	first := true
-	for cursor.HasNextRecord() {
-		checker.step = listDuplikatsRead
-		record, recErr := cursor.NextRecord()
-		if recErr != nil {
-			panic("Read error " + recErr.Error())
-		}
-		currentOption := strings.Trim(record.HashFields["Option"].String(), " ")
-		if first {
-			switch currentOption {
-			case "":
-				err = checker.updateOption(record, "original")
-				if err != nil {
-					panic("Update error" + err.Error())
-				}
-			case "original":
-			default:
-				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
-			}
-			first = false
-		} else {
-			switch currentOption {
-			case "":
-				err = checker.updateOption(record, "duplicate")
-				if err != nil {
-					panic("Update error" + err.Error())
-				}
-			case "duplicate":
-			default:
-				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
-			}
-		}
-		if err != nil {
-			return err
-		}
-		// fmt.Printf("  ISN=%06d %s -> %s\n", record.Isn, record.HashFields["PictureName"].String(), record.HashFields["Option"])
+	if len(result.Data) != 1 {
+		panic("Result read of ISN")
 	}
-	return checker.conn.EndTransaction()
-}
+	data := result.Data[0].(*store.PictureData)
+	fmt.Println(checker.directory, record.HashFields["PictureName"].String(), result.NrRecords(), data.ChecksumPicture)
+	p := checker.directory + path.Dir(record.HashFields["PictureName"].String())
+	p = strings.ReplaceAll(p, "../", "/")
+	_, err = os.Stat(p)
+	if os.IsNotExist(err) {
+		os.MkdirAll(p, os.ModePerm)
+	}
+	n := path.Base(record.HashFields["PictureName"].String())
+	f := p + string(os.PathSeparator) + n
+	file, err := os.OpenFile(f, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	file.Write(data.Media)
 
-func (checker *checker) updateOption(record *adabas.Record, option string) error {
-	checker.step = updateDuplikatsRead
-	// fmt.Println("Updateing...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
-	err := record.SetValue("Option", option)
-	if err != nil {
-		return err
-	}
-	if checker.store == nil {
-		checker.store, err = checker.conn.CreateMapStoreRequest("PictureMetadata")
-		if err != nil {
-			fmt.Println("Map Store error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
-			return err
+	// new mtime
+	newAtime := time.Date(1980, time.January, 1, 10, 00, 00, 0, time.UTC)
+	newMtime := time.Date(1980, time.January, 1, 10, 00, 00, 0, time.UTC)
+
+	t := strings.Trim(record.HashFields["ExifTaken"].String(), " ")
+	if t != "" {
+
+		exifTime, tErr := time.Parse(timeParseFormat, t)
+		if tErr != nil {
+			fmt.Println("Input:", t, "Output:", exifTime)
+			fmt.Println("error", tErr)
+		} else {
+			newAtime = exifTime
+			newMtime = exifTime
 		}
 	}
-	err = checker.store.Update(record)
+	// set new mtime
+	err = os.Chtimes(f, newAtime, newMtime)
 	if err != nil {
-		fmt.Println("Update error...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], err)
-		return err
+		fmt.Println(err)
+		return
 	}
-	checker.step = updateDuplikats
-	err = checker.store.EndTransaction()
-	// fmt.Println("End transaction...", record.Isn, record.HashFields["PictureName"], record.HashFields["Option"], option)
-	return err
+
+	return nil
 }
 
 func writeMemProfile(file string) {

@@ -28,12 +28,13 @@ type PictureConnection struct {
 	MaxBlobSize int64
 }
 
-var hostname = "Unknown"
+// Hostname of this host
+var Hostname = "Unknown"
 
 func init() {
 	host, err := os.Hostname()
 	if err == nil {
-		hostname = host
+		Hostname = host
 	}
 }
 
@@ -120,7 +121,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	// fmt.Println("Directory: ", d)
 	p := PictureBinary{FileName: fileName,
 		MetaData: &PictureMetadata{PictureName: pictureName, Directory: d,
-			PictureHost: hostname, Md5: pictureKey}, MaxBlobSize: ps.MaxBlobSize}
+			PictureHost: Hostname, Md5: pictureKey}, MaxBlobSize: ps.MaxBlobSize}
 	err = p.LoadFile()
 	if err != nil {
 		return err
