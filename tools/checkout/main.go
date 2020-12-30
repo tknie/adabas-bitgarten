@@ -76,6 +76,8 @@ type checker struct {
 	adabas    *adabas.Adabas
 	directory string
 	limit     uint64
+	found     uint64
+	created   uint64
 	step      processStep
 }
 
@@ -243,11 +245,11 @@ func (checker *checker) checkoutOriginals() (err error) {
 	}
 	counter := uint64(0)
 	output := func() {
-		fmt.Printf("%s Picture counter=%d -> %s\n",
-			time.Now().Format(timeFormat), counter, checker.step.command())
+		fmt.Printf("%s Picture counter=%d created=%d found=%d -> %s\n",
+			time.Now().Format(timeFormat), counter, checker.created, checker.found, checker.step.command())
 	}
 	stop := schedule(output, 15*time.Second)
-	result, err := checker.read.ReadLogicalWithStream("Option=original", func(record *adabas.Record, x interface{}) error {
+	_, err = checker.read.ReadLogicalWithStream("Option=original", func(record *adabas.Record, x interface{}) error {
 		checker.step = readStream
 
 		// fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
@@ -263,11 +265,29 @@ func (checker *checker) checkoutOriginals() (err error) {
 		panic("Read error " + err.Error())
 	}
 	stop <- true
-	fmt.Printf("There are %06d records -> %d\n", counter, result.NrRecords())
+	fmt.Printf("There are %06d records -> %d found and %d created\n", counter, checker.found, checker.created)
 	return nil
 }
 
 func (checker *checker) writeFile(record *adabas.Record) (err error) {
+	p := checker.directory + path.Dir(record.HashFields["PictureName"].String())
+	p = strings.ReplaceAll(p, "../", "/")
+	_, err = os.Stat(p)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(p, os.ModePerm)
+		if err != nil {
+			return err
+		}
+	}
+	n := path.Base(record.HashFields["PictureName"].String())
+	f := p + string(os.PathSeparator) + n
+	if _, err := os.Stat(f); !os.IsNotExist(err) {
+		checker.found++
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 	checker.step = listDuplikats
 	if checker.list == nil {
 		checker.list, err = checker.conn.CreateMapReadRequest(&store.PictureData{})
@@ -290,21 +310,12 @@ func (checker *checker) writeFile(record *adabas.Record) (err error) {
 	if len(result.Data) != 1 {
 		panic("Result read of ISN")
 	}
-	data := result.Data[0].(*store.PictureData)
-	fmt.Println(checker.directory, record.HashFields["PictureName"].String(), result.NrRecords(), data.ChecksumPicture)
-	p := checker.directory + path.Dir(record.HashFields["PictureName"].String())
-	p = strings.ReplaceAll(p, "../", "/")
-	_, err = os.Stat(p)
-	if os.IsNotExist(err) {
-		os.MkdirAll(p, os.ModePerm)
-	}
-	n := path.Base(record.HashFields["PictureName"].String())
-	f := p + string(os.PathSeparator) + n
 	file, err := os.OpenFile(f, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
+	data := result.Data[0].(*store.PictureData)
 	file.Write(data.Media)
 
 	// new mtime
@@ -329,6 +340,7 @@ func (checker *checker) writeFile(record *adabas.Record) (err error) {
 		fmt.Println(err)
 		return
 	}
+	checker.created++
 
 	return nil
 }
