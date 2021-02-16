@@ -43,6 +43,7 @@ var hostname string
 type processStep uint
 
 const timeParseFormat = "2006-01-02 15:04:05 -0700 MST"
+const fileTimeFormat = "20060201"
 
 const (
 	begin processStep = iota
@@ -270,8 +271,28 @@ func (checker *checker) checkoutOriginals() (err error) {
 }
 
 func (checker *checker) writeFile(record *adabas.Record) (err error) {
-	p := checker.directory + path.Dir(record.HashFields["PictureName"].String())
-	p = strings.ReplaceAll(p, "../", "/")
+	p := checker.directory
+
+	// new mtime
+	newAtime := time.Date(1980, time.January, 1, 10, 00, 00, 0, time.UTC)
+	newMtime := time.Date(1980, time.January, 1, 10, 00, 00, 0, time.UTC)
+
+	t := strings.Trim(record.HashFields["ExifTaken"].String(), " ")
+	if t != "" {
+
+		exifTime, tErr := time.Parse(timeParseFormat, t)
+		if tErr != nil {
+			fmt.Println("Input:", t, "Output:", exifTime)
+			fmt.Println("error", tErr)
+		} else {
+			newAtime = exifTime
+			newMtime = exifTime
+		}
+		p = fmt.Sprintf("%s%s%s", p, string(os.PathSeparator), newAtime.Format(fileTimeFormat))
+	} else {
+		p += path.Dir(record.HashFields["PictureName"].String())
+		p = strings.ReplaceAll(p, "../", "/")
+	}
 	_, err = os.Stat(p)
 	if os.IsNotExist(err) {
 		err = os.MkdirAll(p, os.ModePerm)
@@ -318,22 +339,6 @@ func (checker *checker) writeFile(record *adabas.Record) (err error) {
 	data := result.Data[0].(*store.PictureData)
 	file.Write(data.Media)
 
-	// new mtime
-	newAtime := time.Date(1980, time.January, 1, 10, 00, 00, 0, time.UTC)
-	newMtime := time.Date(1980, time.January, 1, 10, 00, 00, 0, time.UTC)
-
-	t := strings.Trim(record.HashFields["ExifTaken"].String(), " ")
-	if t != "" {
-
-		exifTime, tErr := time.Parse(timeParseFormat, t)
-		if tErr != nil {
-			fmt.Println("Input:", t, "Output:", exifTime)
-			fmt.Println("error", tErr)
-		} else {
-			newAtime = exifTime
-			newMtime = exifTime
-		}
-	}
 	// set new mtime
 	err = os.Chtimes(f, newAtime, newMtime)
 	if err != nil {

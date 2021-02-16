@@ -3,12 +3,13 @@ module tux-lobload
 go 1.12
 
 require (
-	github.com/SoftwareAG/adabas-go-api v1.5.1
+	github.com/SoftwareAG/adabas-go-api v1.5.2-0.20210124152237-3b119effea16
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
 	go.uber.org/zap v1.16.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
-	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
+	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+	golang.org/x/text v0.3.5 // indirect
 	golang.org/x/tools v0.0.0-20200724172932-b5fc9d354d99 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v2 v2.2.5 // indirect
