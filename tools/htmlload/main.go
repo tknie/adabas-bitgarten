@@ -118,6 +118,7 @@ func schedule(what func(), delay time.Duration) chan bool {
 }
 
 func main() {
+	var fileName string
 	var pictureDirectory string
 	var dbidParameter string
 	var mapFnrParameter int
@@ -131,6 +132,7 @@ func main() {
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
+	flag.StringVar(&fileName, "p", "", "File name of picture to be imported")
 	flag.StringVar(&pictureDirectory, "D", "", "Directory of picture to be imported")
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
 	flag.StringVar(&filter, "f", "@eadir", "Comma-separated list of parts which may excluded")
@@ -155,8 +157,8 @@ func main() {
 	}
 	defer writeMemProfile(*memprofile)
 
-	if !verify && (pictureDirectory == "" && deleteIsn == -1) {
-		fmt.Println("Picture directory option is required")
+	if !verify && (fileName == "" && pictureDirectory == "" && deleteIsn == -1) {
+		fmt.Println("File name option is required")
 		flag.Usage()
 		return
 	}
@@ -181,7 +183,6 @@ func main() {
 
 	ps.ChecksumRun = checksumRun
 	ps.MaxBlobSize = int64(binarySize)
-	ps.Filter = strings.Split(filter, ",")
 
 	if deleteIsn > 0 {
 		err := ps.DeleteIsn(a, adatypes.Isn(deleteIsn))
@@ -193,10 +194,36 @@ func main() {
 		return
 	}
 
+	if fileName != "" {
+		err = filepath.Walk(fileName, func(path string, info os.FileInfo, err error) error {
+			if info.IsDir() {
+				return nil
+			}
+			// fmt.Println("Check", path)
+			if strings.HasSuffix(strings.ToLower(path), "index.html") {
+				//fmt.Println("Found index file", path)
+				return ps.LoadIndex(!update, path, a)
+			}
+			// if strings.HasSuffix(strings.ToLower(path), ".jpg") {
+			// 	fmt.Println("Load Jpeg", path)
+			// 	return LoadPicture(path, a)
+			// }
+			// if strings.HasSuffix(strings.ToLower(path), ".m4v") {
+			// 	fmt.Println("Load Movie", path)
+			// 	return loadMovie(path, a)
+			// }
+			return nil
+		})
+		if err != nil {
+			fmt.Println("Error walking path", err)
+		}
+		// fmt.Println("End of lob load")
+
+	}
 	if pictureDirectory != "" {
 		output := func() {
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors, ps.NrDeleted)
+			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d\n",
+				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors)
 		}
 
 		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
@@ -208,14 +235,6 @@ func main() {
 			}
 			suffix := path[strings.LastIndex(path, ".")+1:]
 			suffix = strings.ToLower(suffix)
-			for _, f := range ps.Filter {
-				if strings.Contains(path, f) {
-					err := ps.Delete(a, path)
-					if err == nil {
-						ps.NrDeleted++
-					}
-				}
-			}
 			switch suffix {
 			case "jpg", "jpeg", "gif", "m4v", "mov":
 				adatypes.Central.Log.Debugf("Checking picture file: %s", path)

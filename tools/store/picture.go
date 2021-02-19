@@ -464,3 +464,28 @@ func (psx *PictureConnection) DeleteIsn(a *adabas.Adabas, isn adatypes.Isn) erro
 	err = deleteRequest.EndTransaction()
 	return err
 }
+
+// Delete delete image given with path
+func (psx *PictureConnection) Delete(a *adabas.Adabas, path string) error {
+	if path == "" {
+		return nil
+	}
+	fmt.Printf("Delete image with path=%s\n", path)
+	readRequest, err := adabas.NewReadRequest(a, psx.store.MapName)
+	if err != nil {
+		return err
+	}
+	readRequest.QueryFields("")
+	result, resErr := readRequest.ReadLogicalWith("PictureName=" + path)
+	if resErr != nil {
+		return resErr
+	}
+	if result.NrRecords() != 1 {
+		fmt.Printf("Found more then one or no record: %d\n", result.NrRecords())
+		return fmt.Errorf("Found more then one record")
+	}
+	for _, record := range result.Values {
+		psx.DeleteIsn(a, record.Isn)
+	}
+	return nil
+}

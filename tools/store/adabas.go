@@ -24,7 +24,9 @@ type PictureConnection struct {
 	Checked     uint64
 	ToBig       uint64
 	Errors      map[string]uint64
+	Filter      []string
 	NrErrors    uint64
+	NrDeleted   uint64
 	MaxBlobSize int64
 }
 
@@ -86,6 +88,7 @@ func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error)
 	return
 }
 
+// LoadPicture load picture into database
 func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adabas.Adabas) error {
 	fs := strings.Split(fileName, string(os.PathSeparator))
 	pictureName := fileName
