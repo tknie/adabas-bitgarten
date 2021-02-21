@@ -43,7 +43,7 @@ var hostname string
 type processStep uint
 
 const timeParseFormat = "2006-01-02 15:04:05 -0700 MST"
-const fileTimeFormat = "20060201"
+const fileTimeFormat = "20060201-150405"
 
 const (
 	begin processStep = iota
@@ -332,12 +332,16 @@ func (checker *checker) writeFile(record *adabas.Record) (err error) {
 	if len(result.Data) != 1 {
 		panic("Result read of ISN")
 	}
+	data := result.Data[0].(*store.PictureData)
+	if len(data.Media) == 0 {
+		fmt.Println("Stored data empty :", record.HashFields["PictureName"].String())
+		return nil
+	}
 	file, err := os.OpenFile(f, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
-	data := result.Data[0].(*store.PictureData)
 	file.Write(data.Media)
 
 	// set new mtime
