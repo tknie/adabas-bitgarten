@@ -251,7 +251,7 @@ func (checker *checker) analyzeDoublikats() (err error) {
 			time.Now().Format(timeFormat), counter, checker.step.command())
 	}
 	stop := schedule(output, 15*time.Second)
-	result, err := checker.read.ReadPhysicalSequenceStream(func(record *adabas.Record, x interface{}) error {
+	result, err := checker.read.ReadLogicalByStream("ChecksumPicture", func(record *adabas.Record, x interface{}) error {
 		checker.step = readStream
 		if strings.Trim(record.HashFields["ChecksumPicture"].String(), " ") == "" {
 			fmt.Println("Checksum picture missing: ", record.Isn, " removing ...")

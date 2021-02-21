@@ -12,7 +12,11 @@
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto" right>
           <b-nav-form>
-            <b-form-checkbox v-model="checked" @change="changeChecked(checked,$event)" switch>
+            <b-form-checkbox
+              v-model="checked"
+              @change="changeChecked(checked, $event)"
+              switch
+            >
             </b-form-checkbox>
           </b-nav-form>
           <b-nav-item v-on:click="logout">Logout</b-nav-item>
@@ -64,8 +68,10 @@ export default class Header extends Vue {
     console.log('Results changed');
   }
   private changeChecked(evt: any, e: any) {
+    console.log('Changex checked' + !evt);
     store.state.editorMode = !evt;
     this.checked = store.state.editorMode;
+    console.log('Change checked ' + store.state.editorMode);
   }
   private setChecked(c: boolean) {
     this.checked = c;

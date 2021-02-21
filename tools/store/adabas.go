@@ -20,6 +20,7 @@ type PictureConnection struct {
 	ShortenName bool
 	ChecksumRun bool
 	Found       uint64
+	Empty       uint64
 	Loaded      uint64
 	Checked     uint64
 	ToBig       uint64
@@ -86,6 +87,7 @@ func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error)
 	return
 }
 
+// LoadPicture load picture data into database
 func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adabas.Adabas) error {
 	fs := strings.Split(fileName, string(os.PathSeparator))
 	pictureName := fileName
@@ -102,7 +104,18 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	var ok bool
 	ok, err = ps.available(pictureKey)
 	if err != nil {
+		adatypes.Central.Log.Debugf("Availability check error %v", err)
 		return err
+	}
+	empty := checkEmpty(fileName)
+	if empty {
+		adatypes.Central.Log.Debugf(pictureName, "-> picture file empty")
+		ps.Empty++
+		if ok {
+			fmt.Printf("Remove empty file from databaese: %s(%s)\n", fileName, pictureKey)
+			ps.Delete(ada, pictureKey)
+		}
+		return nil
 	}
 	ps.Checked++
 	if ok && insert {
@@ -124,6 +137,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 			PictureHost: Hostname, Md5: pictureKey}, MaxBlobSize: ps.MaxBlobSize}
 	err = p.LoadFile()
 	if err != nil {
+		adatypes.Central.Log.Debugf("Load file error %v", err)
 		return err
 	}
 
@@ -135,6 +149,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 		p.ExtractExif()
 		terr := p.CreateThumbnail()
 		if terr != nil {
+			adatypes.Central.Log.Debugf("Create thumbnail error %v", terr)
 			return terr
 		}
 		if p.MetaData.Height > p.MetaData.Width {
@@ -190,6 +205,18 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	}
 	ps.Loaded++
 	return nil
+}
+
+func checkEmpty(fileName string) bool {
+	st, err := os.Stat(fileName)
+	if os.IsNotExist(err) {
+		// file is not exists similar to empty
+		return true
+	}
+	if st.Size() == 0 {
+		return true
+	}
+	return false
 }
 
 func (ps *PictureConnection) available(key string) (bool, error) {

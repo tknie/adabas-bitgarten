@@ -79,6 +79,7 @@ export default new Vuex.Store({
       console.log('Init receiving Albums');
       const data = await axios.get(config.Url() + '/rest/map/Albums?fields=Title,Date,Thumbnail&limit=0',
         getConfig).then((response: any) => {
+          console.log('Receiving Albums ' + response.status);
           if (response.status !== 200) {
             console.log('Error receiving Albums ' + response.status);
             if (response.status === 401 || response.status === 404) {
@@ -106,8 +107,7 @@ export default new Vuex.Store({
           context.commit('SET_ALBUMS', response.data.Records);
         })
         .catch((error: any) => {
-          console.log(error.response.data);
-          console.log('Error receiving Albums' + error);
+          console.log('Error receiving Albums' + JSON.stringify(error));
           userService.logout();
           if (router.currentRoute.name !== 'login') {
             location.reload(true);

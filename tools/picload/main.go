@@ -220,8 +220,8 @@ func main() {
 	}
 	if pictureDirectory != "" {
 		output := func() {
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors)
+			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d errors=%d\n",
+				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.NrErrors)
 		}
 
 		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
@@ -256,8 +256,8 @@ func main() {
 			return nil
 		})
 		stop <- true
-		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d\n",
-			time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors)
+		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d errors=%d\n",
+			time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.NrErrors)
 		for e, n := range ps.Errors {
 			fmt.Println(e, ":", n)
 		}

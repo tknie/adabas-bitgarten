@@ -56,7 +56,8 @@ const (
 	end
 )
 
-var processSteps = []string{"Begin", "analyze", "list", "list read", "init", "read stream", "delete", "delete ET", "end"}
+var processSteps = []string{"Begin", "analyze", "list", "list read",
+	"init", "read stream", "delete", "delete ET", "end"}
 
 func (cc processStep) code() [2]byte {
 	var code [2]byte

@@ -133,6 +133,7 @@ func main() {
 
 	fmt.Printf("Connect to map repository %s/%d\n", dbidParameter, mapFnrParameter)
 	d := &deleter{test: test}
+	fmt.Println("Filter with: " + query)
 	re, err := regexp.Compile(query)
 	if err != nil {
 		fmt.Println("Query error regexp:", err)
@@ -159,7 +160,7 @@ func removeQuery(record *adabas.Record, x interface{}) error {
 	de := x.(*deleter)
 	found := de.re.MatchString(fn)
 	if found {
-		fmt.Println(record.HashFields["PictureName"].String())
+		fmt.Println("Found :" + fn)
 		if !de.test {
 			de.deleteRequest.Delete(record.Isn)
 			de.counter++
@@ -168,6 +169,8 @@ func removeQuery(record *adabas.Record, x interface{}) error {
 				return err
 			}
 		}
+	} else {
+		//	fmt.Println("Ignore :" + fn)
 	}
 	return nil
 }
