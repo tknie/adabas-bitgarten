@@ -344,6 +344,7 @@ func (checker *checker) writeFile(record *adabas.Record) (err error) {
 			return nil
 		}
 		delRequest.Delete(record.Isn)
+		delRequest.EndTransaction()
 		return nil
 	}
 	file, err := os.OpenFile(f, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
