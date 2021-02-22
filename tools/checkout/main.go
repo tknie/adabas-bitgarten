@@ -338,6 +338,12 @@ func (checker *checker) writeFile(record *adabas.Record) (err error) {
 	if len(data.Media) == 0 {
 		fmt.Println("Stored data empty :", record.HashFields["PictureName"].String())
 		checker.empty++
+		delRequest, delErr := checker.conn.CreateMapDeleteRequest("PictureMetadata")
+		if delErr != nil {
+			fmt.Println("Delete err", delErr)
+			return nil
+		}
+		delRequest.Delete(record.Isn)
 		return nil
 	}
 	file, err := os.OpenFile(f, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
