@@ -80,6 +80,7 @@ type checker struct {
 	limit     uint64
 	found     uint64
 	created   uint64
+	empty     uint64
 	step      processStep
 }
 
@@ -247,8 +248,8 @@ func (checker *checker) checkoutOriginals() (err error) {
 	}
 	counter := uint64(0)
 	output := func() {
-		fmt.Printf("%s Picture counter=%d created=%d found=%d -> %s\n",
-			time.Now().Format(timeFormat), counter, checker.created, checker.found, checker.step.command())
+		fmt.Printf("%s Picture counter=%d created=%d found=%d empty=%d -> %s\n",
+			time.Now().Format(timeFormat), counter, checker.created, checker.found, checker.empty, checker.step.command())
 	}
 	stop := schedule(output, 15*time.Second)
 	_, err = checker.read.ReadLogicalWithStream("Option=original", func(record *adabas.Record, x interface{}) error {
@@ -267,7 +268,8 @@ func (checker *checker) checkoutOriginals() (err error) {
 		panic("Read error " + err.Error())
 	}
 	stop <- true
-	fmt.Printf("There are %06d records -> %d found and %d created\n", counter, checker.found, checker.created)
+	fmt.Printf("There are %06d records -> %d found and %d created, %d empty\n",
+		counter, checker.found, checker.created, checker.empty)
 	return nil
 }
 
@@ -335,6 +337,7 @@ func (checker *checker) writeFile(record *adabas.Record) (err error) {
 	data := result.Data[0].(*store.PictureData)
 	if len(data.Media) == 0 {
 		fmt.Println("Stored data empty :", record.HashFields["PictureName"].String())
+		checker.empty++
 		return nil
 	}
 	file, err := os.OpenFile(f, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
