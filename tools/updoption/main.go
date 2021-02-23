@@ -303,6 +303,7 @@ func (checker *checker) listDuplikats(checksum string) (err error) {
 		panic("Read error " + err.Error())
 	}
 	first := true
+	lastName := ""
 	for cursor.HasNextRecord() {
 		checker.step = listDuplikatsRead
 		record, recErr := cursor.NextRecord()
@@ -311,6 +312,7 @@ func (checker *checker) listDuplikats(checksum string) (err error) {
 		}
 		currentOption := strings.Trim(record.HashFields["Option"].String(), " ")
 		if first {
+			lastName = record.HashFields["PictureName"].String()
 			switch currentOption {
 			case "":
 				err = checker.updateOption(record, "original")
@@ -319,7 +321,11 @@ func (checker *checker) listDuplikats(checksum string) (err error) {
 				}
 			case "original":
 			default:
-				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
+				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original, but was "+currentOption)
+				err = checker.updateOption(record, "original")
+				if err != nil {
+					panic("Update error" + err.Error())
+				}
 			}
 			first = false
 		} else {
@@ -331,7 +337,11 @@ func (checker *checker) listDuplikats(checksum string) (err error) {
 				}
 			case "duplicate":
 			default:
-				fmt.Println(record.HashFields["PictureName"], currentOption, "should be original")
+				fmt.Println(record.HashFields["PictureName"], currentOption, "should be duplicate of", lastName)
+				err = checker.updateOption(record, "duplicate")
+				if err != nil {
+					panic("Update error" + err.Error())
+				}
 			}
 		}
 		if err != nil {
