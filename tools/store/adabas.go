@@ -26,6 +26,7 @@ type PictureConnection struct {
 	ToBig       uint64
 	Errors      map[string]uint64
 	NrErrors    uint64
+	Ignored     uint64
 	MaxBlobSize int64
 }
 

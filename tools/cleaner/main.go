@@ -116,7 +116,7 @@ func main() {
 	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
 	flag.IntVar(&limit, "l", 10, "Maximum records to read (0 is all)")
 	flag.BoolVar(&test, "t", false, "Dry run, don't change")
-	flag.StringVar(&query, "q", "", "Filter for")
+	flag.StringVar(&query, "q", "", "Filter for regexp query used to clean up")
 	flag.Parse()
 
 	if *cpuprofile != "" {
