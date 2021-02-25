@@ -55,6 +55,7 @@ type elementCounter struct {
 type validater struct {
 	conn            *adabas.Connection
 	read            *adabas.ReadRequest
+	delete          *adabas.DeleteRequest
 	list            *adabas.ReadRequest
 	limit           uint64
 	elementMap      map[int]*elementCounter
@@ -63,6 +64,9 @@ type validater struct {
 	failurePictures uint64
 	emptyPictures   uint64
 	unique          uint64
+	deleteDuplikate uint64
+	deleteEmpty     uint64
+	test            bool
 }
 
 func init() {
@@ -160,6 +164,10 @@ func main() {
 		return
 	}
 
+	if test {
+		fmt.Println("Test mode ENABLED")
+	}
+
 	id := adabas.NewAdabasID()
 	a, err := adabas.NewAdabas(dbidParameter, id)
 	if err != nil {
@@ -186,7 +194,7 @@ func main() {
 		}
 	}
 	if validate {
-		val := &validater{limit: uint64(limit), elementMap: make(map[int]*elementCounter)}
+		val := &validater{limit: uint64(limit), test: test, elementMap: make(map[int]*elementCounter)}
 		val.analyzeDoublikats()
 	}
 }
@@ -280,10 +288,10 @@ func (validater *validater) analyzeDoublikats() (err error) {
 	}
 	counter := uint64(0)
 	output := func() {
-		fmt.Printf("%s Picture counter=%d checked=%d ok=%d unique=%d failure=%d empty=%d\n",
+		fmt.Printf("%s Picture counter=%d checked=%d ok=%d unique=%d failure=%d empty=%d del Dupli=%d del Empty=%d\n",
 			time.Now().Format(timeFormat), counter, validater.checkedPicture,
 			validater.okPictures, validater.unique, validater.failurePictures,
-			validater.emptyPictures)
+			validater.emptyPictures, validater.deleteDuplikate, validater.deleteEmpty)
 	}
 	stop := schedule(output, 15*time.Second)
 	cursor, err := validater.read.HistogramByCursoring("ChecksumPicture")
@@ -307,16 +315,23 @@ func (validater *validater) analyzeDoublikats() (err error) {
 			fmt.Printf("Error getting next record cursor: %v\n", err)
 			panic("Cursor error " + err.Error())
 		}
-		err = validater.listDuplikats(record.HashFields["ChecksumPicture"].String())
-		if err != nil {
-			fmt.Printf("Error checking duplikats ChecksumPicture: %v\n", err)
-			panic("Duplikat error " + err.Error())
+		fmt.Println("Quantity: ", record.Quantity)
+		if record.Quantity > 1 {
+			err = validater.listDuplikats(record.HashFields["ChecksumPicture"].String())
+			if err != nil {
+				fmt.Printf("Error checking duplikats ChecksumPicture: %v\n", err)
+				panic("Duplikat error " + err.Error())
+			}
 		}
 		if validater.limit != 0 && counter >= validater.limit {
 			break
 		}
 	}
 	stop <- true
+	fmt.Printf("%s Picture counter=%d checked=%d ok=%d unique=%d failure=%d empty=%d del Dupli=%d del Empty=%d\n",
+		time.Now().Format(timeFormat), counter, validater.checkedPicture,
+		validater.okPictures, validater.unique, validater.failurePictures,
+		validater.emptyPictures, validater.deleteDuplikate, validater.deleteEmpty)
 	fmt.Printf("There are %06d unique records\n", counter)
 	for c, ce := range validater.elementMap {
 		fmt.Println("Elements of ", c, " = ", ce.counter, "occurence")
@@ -336,16 +351,18 @@ func (validater *validater) listDuplikats(checksum string) (err error) {
 			validater.conn.Close()
 			return
 		}
-
+		validater.list.Multifetch = 1
+		validater.list.Limit = 1
 	}
 	cursor, err := validater.list.ReadLogicalWithCursoring("ChecksumPicture=" + checksum)
 	if err != nil {
-		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
+		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v (%s)\n", err, checksum)
 		panic("Read error " + err.Error())
 	}
 	validater.unique++
 	first := true
 	var data []byte
+	var baseIsn uint64
 	counter := 0
 	for cursor.HasNextRecord() {
 		validater.checkedPicture++
@@ -363,17 +380,24 @@ func (validater *validater) listDuplikats(checksum string) (err error) {
 			} else {
 				validater.okPictures++
 			}
+			baseIsn = curPicture.Index
 			first = false
 		} else {
 			if data != nil {
 				if len(curPicture.Media) == 0 {
 					fmt.Println("Second record media is empty", checksum)
 					validater.emptyPictures++
+					fmt.Println("Delete empty ISN:", curPicture.Index, " of ", baseIsn)
+					validater.Delete(curPicture.Index)
+					validater.deleteEmpty++
 				} else if bytes.Compare(data, curPicture.Media) != 0 {
 					fmt.Println("Record entry differ to first", checksum)
 					validater.failurePictures++
 				} else {
 					validater.okPictures++
+					fmt.Println("Delete duplikate ISN:", curPicture.Index, " of ", baseIsn)
+					validater.Delete(curPicture.Index)
+					validater.deleteDuplikate++
 				}
 			} else {
 				fmt.Println("First record is empty")
@@ -388,6 +412,24 @@ func (validater *validater) listDuplikats(checksum string) (err error) {
 		c.counter++
 	} else {
 		validater.elementMap[counter] = &elementCounter{counter: 1}
+	}
+	if !validater.test {
+		validater.conn.EndTransaction()
+	}
+	return nil
+}
+
+func (validater *validater) Delete(isn uint64) (err error) {
+	if !validater.test {
+		if validater.delete == nil {
+			validater.delete, err = validater.conn.CreateMapDeleteRequest("PictureMetadata")
+			if err != nil {
+				validater.conn.Close()
+				return
+			}
+		}
+
+		validater.delete.Delete(adatypes.Isn(isn))
 	}
 	return nil
 }
