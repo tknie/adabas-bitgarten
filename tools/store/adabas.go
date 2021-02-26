@@ -181,16 +181,19 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	p.Data.Md5 = p.MetaData.Md5
 	p.Data.Index = p.MetaData.Index
 	if !ps.ChecksumRun {
-		// fmt.Println("Store data storage")
-		// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
-		err = ps.storeData.UpdateData(p.Data, true)
-		if err != nil {
-			fmt.Println("Error storing record data:", err)
-			return err
-		}
-		err = ps.conn.EndTransaction()
-		if err != nil {
-			panic("Data write: end of transaction error: " + err.Error())
+		ok, err = ps.checkPicture(pictureKey)
+		if err == nil && !ok {
+			// fmt.Println("Store data storage")
+			// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
+			err = ps.storeData.UpdateData(p.Data, true)
+			if err != nil {
+				fmt.Println("Error storing record data:", err)
+				return err
+			}
+			err = ps.conn.EndTransaction()
+			if err != nil {
+				panic("Data write: end of transaction error: " + err.Error())
+			}
 		}
 	}
 	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
@@ -234,6 +237,23 @@ func (ps *PictureConnection) available(key string) (bool, error) {
 		return true, nil
 	}
 	adatypes.Central.Log.Debugf("Md5=%s is not loaded\n", key)
+	return false, nil
+}
+
+func (ps *PictureConnection) checkPicture(key string) (bool, error) {
+	//fmt.Println("Check Md5=" + key)
+	result, err := ps.readCheck.HistogramWith("ChecksumPicture=" + key)
+	if err != nil {
+		fmt.Printf("Error checking ChecksumPicture=%s: %v\n", key, err)
+		panic("Read error " + err.Error())
+		//		return false, err
+	}
+	// result.DumpValues()
+	if len(result.Values) > 0 || len(result.Data) > 0 {
+		adatypes.Central.Log.Debugf("ChecksumPicture=%s is available\n", key)
+		return true, nil
+	}
+	adatypes.Central.Log.Debugf("ChecksumPicture=%s is not loaded\n", key)
 	return false, nil
 }
 

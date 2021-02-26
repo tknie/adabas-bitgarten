@@ -30,6 +30,8 @@ github.com/SoftwareAG/adabas-go-api v1.5.2-0.20210124152237-3b119effea16 h1:AnMq
 github.com/SoftwareAG/adabas-go-api v1.5.2-0.20210124152237-3b119effea16/go.mod h1:Jtvquthx0QQzsa8SZxZxJNmL1gzIMwV96R4RV+ezoNY=
 github.com/SoftwareAG/adabas-go-api v1.5.2 h1:yhbajbV/mpWkiKtSKeyzQpSvXL2fFwcCkoOIa3irJNs=
 github.com/SoftwareAG/adabas-go-api v1.5.2/go.mod h1:Jtvquthx0QQzsa8SZxZxJNmL1gzIMwV96R4RV+ezoNY=
+github.com/SoftwareAG/adabas-go-api v1.5.3 h1:Xk2q887ErteKv0OrO5twv6Tak/21SqzILLOAy7227xM=
+github.com/SoftwareAG/adabas-go-api v1.5.3/go.mod h1:Jtvquthx0QQzsa8SZxZxJNmL1gzIMwV96R4RV+ezoNY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -111,6 +113,8 @@ golang.org/x/net v0.0.0-20210119194325-5f4716e94777 h1:003p0dJM77cxMSyCPFphvZf/Y
 golang.org/x/net v0.0.0-20210119194325-5f4716e94777/go.mod h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=
 golang.org/x/net v0.0.0-20210220033124-5f55cee0dc0d h1:1aflnvSoWWLI2k/dMUAl5lvU1YO4Mb4hz0gh+1rjcxU=
 golang.org/x/net v0.0.0-20210220033124-5f55cee0dc0d/go.mod h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=
+golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 h1:qWPm9rbaAMKs8Bq/9LRpbMqxWRVUAQwMI9fVrssnTfw=
+golang.org/x/net v0.0.0-20210226172049-e18ecbb05110/go.mod h1:m0MpNAwzfU5UDzcl9v0D8zg8gWTRqZa9RBIspLL5mdg=
 golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
