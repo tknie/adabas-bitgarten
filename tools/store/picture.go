@@ -99,6 +99,7 @@ func resizePicture(media []byte, max int) ([]byte, uint32, uint32, error) {
 	buffer.Write(media)
 	srcImage, _, err := image.Decode(&buffer)
 	if err != nil {
+		adatypes.Central.Log.Debugf("Decode image for thumbnail error %v", err)
 		return nil, 0, 0, err
 	}
 	maxX := uint(0)
@@ -122,6 +123,7 @@ func resizePicture(media []byte, max int) ([]byte, uint32, uint32, error) {
 	err = jpeg.Encode(buf, newImage, nil)
 	if err != nil {
 		// fmt.Println("Error generating thumbnail", err)
+		adatypes.Central.Log.Debugf("Encode image for thumbnail error %v", err)
 		return nil, 0, 0, err
 	}
 	return buf.Bytes(), width, height, nil
@@ -334,7 +336,7 @@ func (psx *PictureConnection) LoadIndex(insert bool, fileName string, ada *adaba
 						}
 						err = psx.LoadPicture(insert, directory+ps+"img"+ps+e.imgName, ada)
 						if err != nil {
-							adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
+							adatypes.Central.Log.Debugf("Loaded %s with error=%v", directory+ps+"img"+ps+e.imgName, err)
 							fmt.Println("Error loading picture:", err)
 							os.Exit(1)
 						}
@@ -447,6 +449,26 @@ func (pic *PictureBinary) sendBinary(mapName string, isPicture bool) *StoreRespo
 	s := &StoreResponse{}
 	json.Unmarshal(body, s)
 	return s
+}
+
+// Delete delete picture key
+func (psx *PictureConnection) Delete(a *adabas.Adabas, key string) error {
+	result, err := psx.readCheck.ReadLogicalWith("Md5=" + key)
+	if err != nil {
+		fmt.Printf("Error checking Md5=%s: %v\n", key, err)
+		panic("Read error " + err.Error())
+		//		return false, err
+	}
+
+	deleteRequest, err := adabas.NewMapNameDeleteRequest(a, psx.store.MapName)
+	defer deleteRequest.BackoutTransaction()
+	if err != nil {
+		return err
+	}
+	for _, r := range result.Values {
+		deleteRequest.Delete(r.Isn)
+	}
+	return nil
 }
 
 // DeleteIsn delete image Isn

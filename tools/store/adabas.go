@@ -20,6 +20,7 @@ type PictureConnection struct {
 	ShortenName bool
 	ChecksumRun bool
 	Found       uint64
+	Empty       uint64
 	Loaded      uint64
 	Checked     uint64
 	ToBig       uint64
@@ -27,6 +28,7 @@ type PictureConnection struct {
 	Filter      []string
 	NrErrors    uint64
 	NrDeleted   uint64
+	Ignored     uint64
 	MaxBlobSize int64
 }
 
@@ -88,7 +90,7 @@ func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error)
 	return
 }
 
-// LoadPicture load picture into database
+// LoadPicture load picture data into database
 func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adabas.Adabas) error {
 	fs := strings.Split(fileName, string(os.PathSeparator))
 	pictureName := fileName
@@ -105,7 +107,18 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	var ok bool
 	ok, err = ps.available(pictureKey)
 	if err != nil {
+		adatypes.Central.Log.Debugf("Availability check error %v", err)
 		return err
+	}
+	empty := checkEmpty(fileName)
+	if empty {
+		adatypes.Central.Log.Debugf(pictureName, "-> picture file empty")
+		ps.Empty++
+		if ok {
+			fmt.Printf("Remove empty file from databaese: %s(%s)\n", fileName, pictureKey)
+			ps.Delete(ada, pictureKey)
+		}
+		return nil
 	}
 	ps.Checked++
 	if ok && insert {
@@ -127,6 +140,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 			PictureHost: Hostname, Md5: pictureKey}, MaxBlobSize: ps.MaxBlobSize}
 	err = p.LoadFile()
 	if err != nil {
+		adatypes.Central.Log.Debugf("Load file error %v", err)
 		return err
 	}
 
@@ -138,6 +152,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 		p.ExtractExif()
 		terr := p.CreateThumbnail()
 		if terr != nil {
+			adatypes.Central.Log.Debugf("Create thumbnail error %v", terr)
 			return terr
 		}
 		if p.MetaData.Height > p.MetaData.Width {
@@ -168,16 +183,19 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	p.Data.Md5 = p.MetaData.Md5
 	p.Data.Index = p.MetaData.Index
 	if !ps.ChecksumRun {
-		// fmt.Println("Store data storage")
-		// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
-		err = ps.storeData.UpdateData(p.Data, true)
-		if err != nil {
-			fmt.Println("Error storing record data:", err)
-			return err
-		}
-		err = ps.conn.EndTransaction()
-		if err != nil {
-			panic("Data write: end of transaction error: " + err.Error())
+		ok, err = ps.checkPicture(pictureKey)
+		if err == nil && !ok {
+			// fmt.Println("Store data storage")
+			// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
+			err = ps.storeData.UpdateData(p.Data, true)
+			if err != nil {
+				fmt.Println("Error storing record data:", err)
+				return err
+			}
+			err = ps.conn.EndTransaction()
+			if err != nil {
+				panic("Data write: end of transaction error: " + err.Error())
+			}
 		}
 	}
 	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
@@ -195,6 +213,18 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 	return nil
 }
 
+func checkEmpty(fileName string) bool {
+	st, err := os.Stat(fileName)
+	if os.IsNotExist(err) {
+		// file is not exists similar to empty
+		return true
+	}
+	if st.Size() == 0 {
+		return true
+	}
+	return false
+}
+
 func (ps *PictureConnection) available(key string) (bool, error) {
 	//fmt.Println("Check Md5=" + key)
 	result, err := ps.readCheck.HistogramWith("Md5=" + key)
@@ -209,6 +239,23 @@ func (ps *PictureConnection) available(key string) (bool, error) {
 		return true, nil
 	}
 	adatypes.Central.Log.Debugf("Md5=%s is not loaded\n", key)
+	return false, nil
+}
+
+func (ps *PictureConnection) checkPicture(key string) (bool, error) {
+	//fmt.Println("Check Md5=" + key)
+	result, err := ps.readCheck.HistogramWith("ChecksumPicture=" + key)
+	if err != nil {
+		fmt.Printf("Error checking ChecksumPicture=%s: %v\n", key, err)
+		panic("Read error " + err.Error())
+		//		return false, err
+	}
+	// result.DumpValues()
+	if len(result.Values) > 0 || len(result.Data) > 0 {
+		adatypes.Central.Log.Debugf("ChecksumPicture=%s is available\n", key)
+		return true, nil
+	}
+	adatypes.Central.Log.Debugf("ChecksumPicture=%s is not loaded\n", key)
 	return false, nil
 }
 

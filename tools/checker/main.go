@@ -40,6 +40,7 @@ type checker struct {
 	adabas          *adabas.Adabas
 	limit           uint64
 	deleteDuplikate bool
+	validateLob     bool
 }
 
 func init() {
@@ -107,6 +108,7 @@ func main() {
 	var mapFnrParameter int
 	var limit int
 	var delete bool
+	var validate bool
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
@@ -114,6 +116,7 @@ func main() {
 	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
 	flag.IntVar(&limit, "l", 10, "Maximum records to read (0 is all)")
 	flag.BoolVar(&delete, "D", false, "Delete duplicate entries")
+	flag.BoolVar(&validate, "V", false, "Validate large object entries")
 	flag.Parse()
 
 	if *cpuprofile != "" {
@@ -143,7 +146,7 @@ func main() {
 	}
 	adabas.AddGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
 	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	c := &checker{adabas: a, limit: uint64(limit), deleteDuplikate: delete}
+	c := &checker{adabas: a, limit: uint64(limit), deleteDuplikate: delete, validateLob: validate}
 	err = c.analyzeDoublikats()
 	if err != nil {
 		fmt.Println("Error anaylzing douplikats", err)
@@ -178,6 +181,9 @@ func (checker *checker) analyzeDoublikats() (err error) {
 		if recErr != nil {
 			panic("Read error " + recErr.Error())
 		}
+		if checker.validateLob {
+			checker.validateData(record.HashFields["ChecksumPicture"].String())
+		}
 		counter++
 		if record.Quantity != 1 {
 			//		record.DumpValues()
@@ -190,6 +196,44 @@ func (checker *checker) analyzeDoublikats() (err error) {
 		}
 	}
 	fmt.Printf("There are %06d duplicate of %06d\n", dupli, counter)
+	return nil
+}
+
+func (checker *checker) validateData(checksum string) error {
+	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureBinary")
+	if rerr != nil {
+		checker.conn.Close()
+		return rerr
+	}
+	rerr = readCheck.QueryFields("ChecksumPicture,PictureName,Media")
+	if rerr != nil {
+		checker.conn.Close()
+		return rerr
+	}
+	readCheck.Multifetch = 1
+	adatypes.Central.Log.Debugf("Read checksums records")
+	cursor, err := readCheck.ReadLogicalWithCursoring("ChecksumPicture=" + checksum)
+	if err != nil {
+		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
+		panic("Read error " + err.Error())
+	}
+	adatypes.Central.Log.Debugf("Called and get next record")
+	for cursor.HasNextRecord() {
+		record, recErr := cursor.NextRecord()
+		if recErr != nil {
+			panic("Read error " + recErr.Error())
+		}
+		mv := record.HashFields["Media"]
+		adatypes.Central.Log.Debugf("Length %d %#v", mv.Type().Length(), mv)
+		fmt.Println("Length", record.HashFields["Media"].Type().Length())
+		data := record.HashFields["Media"].Bytes()
+		if len(data) == 0 {
+			fmt.Printf("Empty data %s for ChecksumPicture\n", record.HashFields["PictureName"].String())
+			panic("Empty media error " + record.HashFields["PictureName"].String())
+		}
+		fmt.Printf("  ISN=%06d %s\n", record.Isn, record.HashFields["PictureName"].String())
+
+	}
 	return nil
 }
 
