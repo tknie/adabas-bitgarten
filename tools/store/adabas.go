@@ -17,6 +17,7 @@ type PictureConnection struct {
 	storeData   *adabas.StoreRequest
 	storeThumb  *adabas.StoreRequest
 	readCheck   *adabas.ReadRequest
+	histCheck   *adabas.ReadRequest
 	ShortenName bool
 	ChecksumRun bool
 	Found       uint64
@@ -87,6 +88,11 @@ func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error)
 		ps.conn.Close()
 		return nil, err
 	}
+	ps.histCheck, err = ps.conn.CreateMapReadRequest("PictureMetadata")
+	if err != nil {
+		ps.conn.Close()
+		return nil, err
+	}
 	return
 }
 
@@ -116,7 +122,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adab
 		ps.Empty++
 		if ok {
 			fmt.Printf("Remove empty file from databaese: %s(%s)\n", fileName, pictureKey)
-			ps.Delete(ada, pictureKey)
+			ps.DeleteMd5(ada, pictureKey)
 		}
 		return nil
 	}
@@ -244,7 +250,7 @@ func (ps *PictureConnection) available(key string) (bool, error) {
 
 func (ps *PictureConnection) checkPicture(key string) (bool, error) {
 	//fmt.Println("Check Md5=" + key)
-	result, err := ps.readCheck.HistogramWith("ChecksumPicture=" + key)
+	result, err := ps.histCheck.HistogramWith("ChecksumPicture=" + key)
 	if err != nil {
 		fmt.Printf("Error checking ChecksumPicture=%s: %v\n", key, err)
 		panic("Read error " + err.Error())

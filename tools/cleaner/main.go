@@ -315,7 +315,7 @@ func (validater *validater) analyzeDoublikats() (err error) {
 			fmt.Printf("Error getting next record cursor: %v\n", err)
 			panic("Cursor error " + err.Error())
 		}
-		fmt.Println("Quantity: ", record.Quantity)
+		// fmt.Println("Quantity: ", record.Quantity)
 		if record.Quantity > 1 {
 			err = validater.listDuplikats(record.HashFields["ChecksumPicture"].String())
 			if err != nil {
@@ -388,7 +388,10 @@ func (validater *validater) listDuplikats(checksum string) (err error) {
 					fmt.Println("Second record media is empty", checksum)
 					validater.emptyPictures++
 					fmt.Println("Delete empty ISN:", curPicture.Index, " of ", baseIsn)
-					validater.Delete(curPicture.Index)
+					err = validater.Delete(curPicture.Index)
+					if err != nil {
+						return err
+					}
 					validater.deleteEmpty++
 				} else if bytes.Compare(data, curPicture.Media) != 0 {
 					fmt.Println("Record entry differ to first", checksum)
@@ -396,7 +399,10 @@ func (validater *validater) listDuplikats(checksum string) (err error) {
 				} else {
 					validater.okPictures++
 					fmt.Println("Delete duplikate ISN:", curPicture.Index, " of ", baseIsn)
-					validater.Delete(curPicture.Index)
+					err = validater.Delete(curPicture.Index)
+					if err != nil {
+						return err
+					}
 					validater.deleteDuplikate++
 				}
 			} else {
@@ -414,7 +420,7 @@ func (validater *validater) listDuplikats(checksum string) (err error) {
 		validater.elementMap[counter] = &elementCounter{counter: 1}
 	}
 	if !validater.test {
-		validater.conn.EndTransaction()
+		return validater.conn.EndTransaction()
 	}
 	return nil
 }

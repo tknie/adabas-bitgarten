@@ -135,7 +135,7 @@ func main() {
 
 	flag.StringVar(&pictureDirectory, "D", "", "Directory of picture to be imported")
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
-	flag.StringVar(&filter, "f", "@eadir", "Comma-separated list of parts which may excluded")
+	flag.StringVar(&filter, "F", "@eadir", "Comma-separated list of parts which may excluded")
 	flag.StringVar(&query, "q", "", "Ignore paths using this regexp")
 	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
 	flag.BoolVar(&verify, "v", false, "Verify data")
@@ -220,7 +220,7 @@ func main() {
 			suffix = strings.ToLower(suffix)
 			for _, f := range ps.Filter {
 				if strings.Contains(path, f) {
-					err := ps.Delete(a, path)
+					err := ps.DeletePath(a, path)
 					if err == nil {
 						ps.NrDeleted++
 					}
