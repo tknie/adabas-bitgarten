@@ -451,8 +451,8 @@ func (pic *PictureBinary) sendBinary(mapName string, isPicture bool) *StoreRespo
 	return s
 }
 
-// Delete delete picture key
-func (psx *PictureConnection) Delete(a *adabas.Adabas, key string) error {
+// DeleteMd5 delete picture key
+func (psx *PictureConnection) DeleteMd5(a *adabas.Adabas, key string) error {
 	result, err := psx.readCheck.ReadLogicalWith("Md5=" + key)
 	if err != nil {
 		fmt.Printf("Error checking Md5=%s: %v\n", key, err)
@@ -485,4 +485,29 @@ func (psx *PictureConnection) DeleteIsn(a *adabas.Adabas, isn adatypes.Isn) erro
 	}
 	err = deleteRequest.EndTransaction()
 	return err
+}
+
+// DeletePath delete image given with path
+func (psx *PictureConnection) DeletePath(a *adabas.Adabas, path string) error {
+	if path == "" {
+		return nil
+	}
+	fmt.Printf("Delete image with path=%s\n", path)
+	readRequest, err := adabas.NewReadRequest(a, psx.store.MapName)
+	if err != nil {
+		return err
+	}
+	readRequest.QueryFields("")
+	result, resErr := readRequest.ReadLogicalWith("PictureName=" + path)
+	if resErr != nil {
+		return resErr
+	}
+	if result.NrRecords() != 1 {
+		fmt.Printf("Found more then one or no record: %d\n", result.NrRecords())
+		return fmt.Errorf("Found more then one record")
+	}
+	for _, record := range result.Values {
+		psx.DeleteIsn(a, record.Isn)
+	}
+	return nil
 }

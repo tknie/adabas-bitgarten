@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"runtime/pprof"
 	"strings"
@@ -119,6 +118,7 @@ func schedule(what func(), delay time.Duration) chan bool {
 }
 
 func main() {
+	var fileName string
 	var pictureDirectory string
 	var dbidParameter string
 	var mapFnrParameter int
@@ -129,14 +129,13 @@ func main() {
 	var update bool
 	var checksumRun bool
 	var shortenName bool
-	var query string
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
+	flag.StringVar(&fileName, "p", "", "File name of picture to be imported")
 	flag.StringVar(&pictureDirectory, "D", "", "Directory of picture to be imported")
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
-	flag.StringVar(&filter, "F", "@eadir", "Comma-separated list of parts which may excluded")
-	flag.StringVar(&query, "q", "", "Ignore paths using this regexp")
+	flag.StringVar(&filter, "f", "@eadir", "Comma-separated list of parts which may excluded")
 	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
 	flag.BoolVar(&verify, "v", false, "Verify data")
 	flag.BoolVar(&update, "u", false, "Update data")
@@ -158,8 +157,8 @@ func main() {
 	}
 	defer writeMemProfile(*memprofile)
 
-	if !verify && (pictureDirectory == "" && deleteIsn == -1) {
-		fmt.Println("Picture directory option is required")
+	if !verify && (fileName == "" && pictureDirectory == "" && deleteIsn == -1) {
+		fmt.Println("File name option is required")
 		flag.Usage()
 		return
 	}
@@ -184,7 +183,6 @@ func main() {
 
 	ps.ChecksumRun = checksumRun
 	ps.MaxBlobSize = int64(binarySize)
-	ps.Filter = strings.Split(filter, ",")
 
 	if deleteIsn > 0 {
 		err := ps.DeleteIsn(a, adatypes.Isn(deleteIsn))
@@ -196,17 +194,36 @@ func main() {
 		return
 	}
 
+	if fileName != "" {
+		err = filepath.Walk(fileName, func(path string, info os.FileInfo, err error) error {
+			if info.IsDir() {
+				return nil
+			}
+			// fmt.Println("Check", path)
+			if strings.HasSuffix(strings.ToLower(path), "index.html") {
+				//fmt.Println("Found index file", path)
+				return ps.LoadIndex(!update, path, a)
+			}
+			// if strings.HasSuffix(strings.ToLower(path), ".jpg") {
+			// 	fmt.Println("Load Jpeg", path)
+			// 	return LoadPicture(path, a)
+			// }
+			// if strings.HasSuffix(strings.ToLower(path), ".m4v") {
+			// 	fmt.Println("Load Movie", path)
+			// 	return loadMovie(path, a)
+			// }
+			return nil
+		})
+		if err != nil {
+			fmt.Println("Error walking path", err)
+		}
+		// fmt.Println("End of lob load")
+
+	}
 	if pictureDirectory != "" {
 		output := func() {
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors, ps.NrDeleted)
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d ignored=%d errors=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.Ignored, ps.NrErrors)
-		}
-		reg, err := regexp.Compile(query)
-		if err != nil {
-			fmt.Println("Query error regexp:", err)
-			return
+			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d\n",
+				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors)
 		}
 
 		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
@@ -218,47 +235,31 @@ func main() {
 			}
 			suffix := path[strings.LastIndex(path, ".")+1:]
 			suffix = strings.ToLower(suffix)
-			for _, f := range ps.Filter {
-				if strings.Contains(path, f) {
-					err := ps.DeletePath(a, path)
-					if err == nil {
-						ps.NrDeleted++
-					}
-				}
-			}
 			switch suffix {
 			case "jpg", "jpeg", "gif", "m4v", "mov":
 				adatypes.Central.Log.Debugf("Checking picture file: %s", path)
-				add := true
-				if query != "" {
-					add = checkQueryPath(reg, path)
-				}
-				if add {
-					err = ps.LoadPicture(!update, path, a)
-					if err != nil {
-						adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
-						fmt.Fprintln(os.Stderr, "Error loading picture", path, ":", err)
-						if strings.HasPrefix(err.Error(), "File tooo big") {
-							ps.ToBig++
+				err = ps.LoadPicture(!update, path, a)
+				if err != nil {
+					adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
+					fmt.Fprintln(os.Stderr, "Error loading picture", path, ":", err)
+					if strings.HasPrefix(err.Error(), "File tooo big") {
+						ps.ToBig++
+					} else {
+						if n, ok := ps.Errors[err.Error()]; ok {
+							ps.Errors[err.Error()] = n + 1
 						} else {
-							if n, ok := ps.Errors[err.Error()]; ok {
-								ps.Errors[err.Error()] = n + 1
-							} else {
-								ps.Errors[err.Error()] = 1
-							}
-							ps.NrErrors++
+							ps.Errors[err.Error()] = 1
 						}
+						ps.NrErrors++
 					}
-				} else {
-					ps.Ignored++
 				}
 			default:
 			}
 			return nil
 		})
 		stop <- true
-		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d ignored=%d errors=%d\n",
-			time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.Ignored, ps.NrErrors)
+		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d\n",
+			time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors)
 		for e, n := range ps.Errors {
 			fmt.Println(e, ":", n)
 		}
@@ -273,10 +274,6 @@ func main() {
 		fmt.Printf("%s finished verify of database picture content\n", time.Now().Format(timeFormat))
 	}
 
-}
-
-func checkQueryPath(reg *regexp.Regexp, path string) bool {
-	return !reg.MatchString(path)
 }
 
 func writeMemProfile(file string) {
