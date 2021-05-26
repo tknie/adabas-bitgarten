@@ -90,9 +90,15 @@ func main() {
 	flag.BoolVar(&compare, "c", false, "Compare data")
 	flag.Parse()
 
+	connection, err := adabas.NewConnection("acj;map" + r.mapName + ";config=[" + r.repository + "]")
+	if err != nil {
+		fmt.Println(err.Error())
+		panic("Error repository:" + err.Error())
+	}
+
 	if fileName != "" && hash != "" {
 		if compare {
-			compareMedia(r, fileName, hash)
+			compareMedia(connection, r, fileName, hash)
 			return
 		}
 		loadMedia(r, fileName, hash)
@@ -126,26 +132,25 @@ func createChecksum(b []byte) string {
 }
 
 func receiveInterface(data interface{}, x interface{}) error {
-	p := data.(*store.PictureBinary)
-	ckSum := createChecksum(p.Data.Media)
-	chkSav := strings.Trim(p.Data.ChecksumPicture, " ")
-	fmt.Println(p.MetaData.Md5, ": Check", p.MetaData.Title)
+	p := data.(*store.PictureData)
+	ckSum := createChecksum(p.Media)
+	chkSav := strings.Trim(p.ChecksumPicture, " ")
 	if ckSum != chkSav {
 		fmt.Println("Received Media data not valid")
-		fmt.Println(ckSum, " -> ", chkSav, "=", len(p.Data.Media))
+		fmt.Println(ckSum, " -> ", chkSav, "=", len(p.Media))
 	}
-	if strings.Trim(p.Data.ChecksumThumbnail, " ") != "" {
+	/*if strings.Trim(p.Data.ChecksumThumbnail, " ") != "" {
 		ckSum = createChecksum(p.Data.Thumbnail)
 		chkSav = strings.Trim(p.Data.ChecksumThumbnail, " ")
 		if ckSum != chkSav {
 			fmt.Println("Received Thumbnail data not valid")
 			fmt.Println(ckSum, " -> ", chkSav, "=", len(p.Data.Thumbnail))
 		}
-	}
+	}*/
 	return nil
 }
 
-func compareMedia(r *reader, loadFile, hash string) (err error) {
+func compareMedia(connection *adabas.Connection, r *reader, loadFile, hash string) (err error) {
 	fmt.Println("Compare file", loadFile, "with data in", hash)
 	p := &store.PictureBinary{MetaData: &store.PictureMetadata{Md5: hash}, FileName: loadFile}
 	err = p.LoadFile()
@@ -153,7 +158,7 @@ func compareMedia(r *reader, loadFile, hash string) (err error) {
 		return
 	}
 	p2 := &store.PictureBinary{}
-	err = p2.ReadDatabase(hash, r.repository)
+	err = p2.ReadDatabase(connection, hash, r.repository)
 	if err != nil {
 		return err
 	}
@@ -183,17 +188,17 @@ func loadMedia(r *reader, loadFile, hash string) (*store.PictureBinary, error) {
 	}
 	defer connection.Close()
 
-	request, serr := connection.CreateMapStoreRequest(store.PictureBinary{})
+	request, serr := connection.CreateMapStoreRequest(store.PictureData{})
 	if serr != nil {
 		fmt.Println("Error create request", serr)
 		return nil, serr
 	}
-	serr = request.StoreFields("Media")
+	serr = request.StoreFields("DP")
 	if serr != nil {
 		fmt.Println("Error define fields", serr)
 		return nil, serr
 	}
-	serr = request.StoreData(p)
+	serr = request.StoreData(p.Data)
 	if serr != nil {
 		fmt.Println("Error store data", serr)
 		return nil, serr
@@ -241,7 +246,7 @@ func verifyLargeObjects(r *reader) {
 	}
 	defer connection.Close()
 
-	request, rerr := connection.CreateMapReadRequest(store.PictureBinary{})
+	request, rerr := connection.CreateMapReadRequest(store.PictureData{})
 	if rerr != nil {
 		fmt.Println("Error create request", rerr)
 		return

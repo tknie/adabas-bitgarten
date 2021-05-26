@@ -121,7 +121,7 @@ func schedule(what func(), delay time.Duration) chan bool {
 func main() {
 	var pictureDirectory string
 	var dbidParameter string
-	var mapFnrParameter int
+	var picFnrParameter int
 	var filter string
 	var deleteIsn int
 	var binarySize int
@@ -132,19 +132,21 @@ func main() {
 	var query string
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+	dbReference := &store.DatabaseReference{}
 
 	flag.StringVar(&pictureDirectory, "D", "", "Directory of picture to be imported")
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
 	flag.StringVar(&filter, "F", "@eadir", "Comma-separated list of parts which may excluded")
 	flag.StringVar(&query, "q", "", "Ignore paths using this regexp")
-	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
+	flag.IntVar(&picFnrParameter, "p", 4, "Picture file number")
 	flag.BoolVar(&verify, "v", false, "Verify data")
 	flag.BoolVar(&update, "u", false, "Update data")
 	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
 	flag.BoolVar(&checksumRun, "c", false, "Checksum run, no data load")
 	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
-	flag.IntVar(&binarySize, "b", 50000000, "Maximum binary blob size")
+	flag.IntVar(&binarySize, "b", 70000000, "Maximum binary blob size")
 	flag.Parse()
+	dbReference.PictureFile = adabas.Fnr(picFnrParameter)
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -163,19 +165,16 @@ func main() {
 		flag.Usage()
 		return
 	}
-	fmt.Printf("Connect to map repository %s/%d\n", dbidParameter, mapFnrParameter)
+	fmt.Printf("Connect to map repository %s/%d\n", dbidParameter, picFnrParameter)
 
-	id := adabas.NewAdabasID()
-	a, err := adabas.NewAdabas(dbidParameter, id)
+	var err error
+	dbReference.Connection, err = adabas.NewConnection(fmt.Sprintf("acj;inmap=%s,%d", dbidParameter, picFnrParameter))
 	if err != nil {
-		fmt.Println("Adabas target generation error", err)
-		return
+		fmt.Println("Adabas connection error", err)
+		panic("Adabas communication error")
 	}
-	adabas.AddGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	//adabas.DumpGlobalMapRepositories()
 
-	ps, perr := store.InitStorePictureBinary(!shortenName)
+	ps, perr := store.InitStorePictureBinary(!shortenName, dbReference)
 	if perr != nil {
 		fmt.Println("Adabas connection error", perr)
 		panic("Adabas communication error")
@@ -187,7 +186,7 @@ func main() {
 	ps.Filter = strings.Split(filter, ",")
 
 	if deleteIsn > 0 {
-		err := ps.DeleteIsn(a, adatypes.Isn(deleteIsn))
+		err := ps.DeleteIsn(adatypes.Isn(deleteIsn))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error deleting Isn=%d: %v", deleteIsn, err)
 		} else {
@@ -200,8 +199,8 @@ func main() {
 		output := func() {
 			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
 				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors, ps.NrDeleted)
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d ignored=%d errors=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.Ignored, ps.NrErrors)
+			fmt.Printf("%s Picture directory added=%d empty=%d ignored=%d\n",
+				time.Now().Format(timeFormat), ps.Added, ps.Empty, ps.Ignored)
 		}
 		reg, err := regexp.Compile(query)
 		if err != nil {
@@ -220,7 +219,7 @@ func main() {
 			suffix = strings.ToLower(suffix)
 			for _, f := range ps.Filter {
 				if strings.Contains(path, f) {
-					err := ps.DeletePath(a, path)
+					err := ps.DeletePath(path)
 					if err == nil {
 						ps.NrDeleted++
 					}
@@ -234,7 +233,7 @@ func main() {
 					add = checkQueryPath(reg, path)
 				}
 				if add {
-					err = ps.LoadPicture(!update, path, a)
+					err = ps.LoadPicture(!update, path)
 					if err != nil {
 						adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
 						fmt.Fprintln(os.Stderr, "Error loading picture", path, ":", err)
@@ -257,15 +256,16 @@ func main() {
 			return nil
 		})
 		stop <- true
-		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d ignored=%d errors=%d\n",
-			time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.Ignored, ps.NrErrors)
+		output()
+		fmt.Printf("%s Done\n",
+			time.Now().Format(timeFormat))
 		for e, n := range ps.Errors {
 			fmt.Println(e, ":", n)
 		}
 	}
 	if verify {
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
-		err = store.VerifyPicture("PictureData", fmt.Sprintf("%s,%d", dbidParameter, mapFnrParameter))
+		err := store.VerifyPicture("PictureData", fmt.Sprintf("%s,%d", dbidParameter, picFnrParameter))
 		if err != nil {
 			fmt.Printf("%s Error during verify of database picture content: %v\n", time.Now().Format(timeFormat), err)
 			return

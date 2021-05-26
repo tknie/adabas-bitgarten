@@ -3,15 +3,11 @@ package store
 import (
 	"bytes"
 	"crypto/md5"
-	"encoding/json"
 	"fmt"
 	"image"
 	"image/jpeg"
-	"io/ioutil"
-	"mime/multipart"
-	"net/http"
 	"os"
-	"strconv"
+	"regexp"
 	"strings"
 
 	"github.com/rwcarlsen/goexif/exif"
@@ -19,11 +15,11 @@ import (
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
 	"github.com/nfnt/resize"
-	"golang.org/x/net/html"
 )
 
 // PictureBinary definition
 type PictureBinary struct {
+	Index       uint64 `adabas:"#isn" json:"-"`
 	FileName    string `xml:"-" json:"-"`
 	MetaData    *PictureMetadata
 	MaxBlobSize int64 // 50000000
@@ -32,36 +28,43 @@ type PictureBinary struct {
 
 // PictureMetadata definition
 type PictureMetadata struct {
-	Index           uint64 `adabas:"#isn" json:"-"`
-	Md5             string `adabas:"Md5:key"`
-	PictureName     string
-	PictureHost     string
-	Directory       string
-	Title           string
-	Fill            string
-	MIMEType        string
-	Option          string
-	Width           uint32
-	Height          uint32
-	ExifModel       string
-	ExifMake        string
-	ExifTaken       string
-	ExifOrigTime    string
-	ExifOrientation byte
-	ExifXdimension  uint32
-	ExifYdimension  uint32
+	Index           uint64             `adabas:"#isn" json:"-"`
+	Md5             string             `adabas:":key:M5"`
+	Title           string             `adabas:"::TI"`
+	Fill            string             `adabas:"::FI"`
+	MIMEType        string             `adabas:"::TY"`
+	Option          string             `adabas:"::OP"`
+	Width           uint32             `adabas:"::HE"`
+	Height          uint32             `adabas:"::WI"`
+	PictureLocation []*PictureLocation `adabas:"::PL"`
+	ExifModel       string             `adabas:"::MO"`
+	ExifMake        string             `adabas:"::MA"`
+	ExifTaken       string             `adabas:"::TA"`
+	ExifOrigTime    string             `adabas:"::OT"`
+	ExifOrientation byte               `adabas:"::OR"`
+	ExifXdimension  uint32             `adabas:"::XD"`
+	ExifYdimension  uint32             `adabas:"::YD"`
+}
+
+type PictureLocation struct {
+	PictureName      string `adabas:"::PN"`
+	PictureHash      string `adabas:"::PM"`
+	PictureHost      string `adabas:"::PH"`
+	PictureDirectory string `adabas:"::PD"`
 }
 
 // PictureData definition
 type PictureData struct {
-	Index             uint64 `adabas:":isn" json:"-"`
-	Md5               string `adabas:"Md5:key"`
-	ChecksumThumbnail string
-	ChecksumPicture   string
-	FileName          string `xml:"-" json:"-"`
-	Media             []byte `xml:"-" json:"-"`
-	Thumbnail         []byte `xml:"-" json:"-"`
+	Index           uint64   `adabas:":isn" json:"-"`
+	Md5             string   `adabas:":key:M5"`
+	ChecksumPicture string   `adabas:"::CP"`
+	FileName        []string `adabas:"::PN" xml:"-" json:"-"`
+	Media           []byte   `adabas:"::DP" xml:"-" json:"-"`
+	Thumbnail       []byte   `adabas:"::DT" xml:"-" json:"-"`
+	//	ChecksumThumbnail string `adabas:":key:CT"`
 }
+
+var re = regexp.MustCompile(`(?m).*/([^/]*)`)
 
 // LoadFile load file
 func (pic *PictureBinary) LoadFile() error {
@@ -142,7 +145,7 @@ func (pic *PictureBinary) ExtractExif() error {
 	// x.Walk(p)
 	camModel, err := x.Get(exif.Model) // normally, don't ignore errors!
 	if err != nil {
-		fmt.Println(err)
+		adatypes.Central.Log.Infof("Error EXIF: %v", err)
 	} else {
 		model, _ := camModel.StringVal()
 		pic.MetaData.ExifModel = model
@@ -203,8 +206,8 @@ func (pic *PictureBinary) CreateThumbnail() error {
 		pic.Data.Thumbnail = thmb
 		pic.MetaData.Width = w
 		pic.MetaData.Height = h
-		pic.Data.ChecksumThumbnail = createMd5(pic.Data.Thumbnail)
-		adatypes.Central.Log.Debugf("Thumbnail checksum", pic.Data.ChecksumThumbnail)
+		// pic.Data.ChecksumThumbnail = createMd5(pic.Data.Thumbnail)
+		// adatypes.Central.Log.Debugf("Thumbnail checksum", pic.Data.ChecksumThumbnail)
 	} else {
 		fmt.Println("No image, skip thumbnail generation ....")
 	}
@@ -213,13 +216,7 @@ func (pic *PictureBinary) CreateThumbnail() error {
 }
 
 // ReadDatabase read picture binary from database
-func (pic *PictureBinary) ReadDatabase(hash, repository string) (err error) {
-	connection, err := adabas.NewConnection("acj;map;config=[" + repository + "]")
-	if err != nil {
-		return
-	}
-	defer connection.Close()
-
+func (pic *PictureBinary) ReadDatabase(connection *adabas.Connection, hash, repository string) (err error) {
 	request, rerr := connection.CreateMapReadRequest(PictureBinary{})
 	if rerr != nil {
 		fmt.Println("Error create request", rerr)
@@ -252,262 +249,118 @@ type entry struct {
 
 var entries []entry
 
-// LoadIndex load index info
-func (psx *PictureConnection) LoadIndex(insert bool, fileName string, ada *adabas.Adabas) error {
-	fmt.Println("Load index", fileName)
-	i := strings.LastIndex(fileName, "/")
-	directory := fileName[:i]
-	albumName := directory[strings.LastIndex(directory, "/")+1:]
-	fmt.Println("Got album name ", albumName, " directory=", directory)
-	ps := string(os.PathSeparator)
-	f, err := os.Open(fileName)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	defer f.Close()
-	doc, derr := html.Parse(f)
-	if derr != nil {
-		return derr
-	}
-	var fctHtml func(*html.Node)
-	fctHtml = func(n *html.Node) {
-		if n.Type == html.ElementNode {
-			switch n.Data {
-			case "a":
-				for _, a := range n.Attr {
-					if a.Key == "class" && strings.Contains(a.Val, "navbar-brand") {
-						var buffer bytes.Buffer
-						for c := n.FirstChild; c != nil; c = c.NextSibling {
-							buffer.WriteString(c.Data)
-						}
-						adatypes.Central.Log.Debugf("Title -> %s", buffer.String())
-						break
-					}
-				}
-			case "div":
-				for _, a := range n.Attr {
-					if a.Key == "class" && strings.Contains(a.Val, "item") {
-						e := entry{}
-						adatypes.Central.Log.Debugf("Found item: %s", a.Val)
-						for c := n.FirstChild; c != nil; c = c.NextSibling {
-							switch c.Data {
-							case "video":
-								for _, sa := range c.Attr {
-									adatypes.Central.Log.Debugf("VideoX -> %s", sa.Val)
-									if sa.Key == "class" {
-										e.fillType = sa.Val
-									}
-								}
-								for s := c.FirstChild; s != nil; s = s.NextSibling {
-									if s.Data == "source" {
-										adatypes.Central.Log.Debugf("VideoY -> %s", s.Data)
-										for _, sb := range s.Attr {
-											if sb.Key == "src" {
-												adatypes.Central.Log.Debugf("VideoZ -> %s", sb.Key, sb.Val)
-												li := strings.LastIndex(sb.Val, "/")
-												e.imgName = sb.Val[li+1:]
-											}
-										}
-									}
-								}
-							case "div":
-								for _, sa := range c.Attr {
-									switch sa.Key {
-									case "style":
-										adatypes.Central.Log.Debugf("Style -> %s", sa.Val)
-										e.imgName = sa.Val[strings.Index(sa.Val, "/")+1 : strings.LastIndex(sa.Val, "'")]
-									case "class":
-										if sa.Val == "carousel-caption" {
-											adatypes.Central.Log.Debugf("classX -> %s", sa.Val)
-											for s := c.FirstChild; s != nil; s = s.NextSibling {
-												for sb := s.FirstChild; sb != nil; sb = sb.NextSibling {
-													adatypes.Central.Log.Debugf(" -> %s", sb.Data)
-													e.text = sb.Data
-												}
-											}
-										} else {
-											adatypes.Central.Log.Debugf("Fill -> %s", sa.Val)
-											e.fillType = sa.Val
-										}
-									}
-								}
-							}
-						}
-						err = psx.LoadPicture(insert, directory+ps+"img"+ps+e.imgName, ada)
-						if err != nil {
-							adatypes.Central.Log.Debugf("Loaded %s with error=%v", directory+ps+"img"+ps+e.imgName, err)
-							fmt.Println("Error loading picture:", err)
-							os.Exit(1)
-						}
-						entries = append(entries, e)
-						break
-					}
-				}
-			default:
-			}
-		}
-
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			fctHtml(c)
-		}
-	}
-	fctHtml(doc)
-
-	// fmt.Println("Entries:", entries)
-
-	return nil
-}
-
 func loadMovie(fileName string, ada *adabas.Adabas) error {
 	fmt.Println("Load movie", fileName)
 	return nil
 }
 
-// StorePicture store picture data
-func (pic *PictureBinary) StorePicture() error {
-	s := &Store{}
-	s.Store = append(s.Store, pic)
-	err := pic.LoadFile()
-	if err != nil {
-		panic("Error loading file " + err.Error())
+func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err error) {
+	fileName := pic.FileName
+	suffix := fileName[strings.LastIndex(fileName, ".")+1:]
+	suffix = strings.ToLower(suffix)
+	switch suffix {
+	case "jpg", "jpeg", "gif":
+		pic.MetaData.MIMEType = "image/" + suffix
+		pic.ExtractExif()
+		terr := pic.CreateThumbnail()
+		if terr != nil {
+			adatypes.Central.Log.Debugf("Create thumbnail error %v", terr)
+			return terr
+		}
+		if pic.MetaData.Height > pic.MetaData.Width {
+			pic.MetaData.Fill = "1"
+		} else {
+			pic.MetaData.Fill = "2"
+		}
+	case "m4v", "mov":
+		pic.MetaData.MIMEType = "video/mp4"
+		pic.MetaData.Fill = "0"
+	default:
+		panic("Unknown suffix " + suffix)
 	}
-	if strings.HasPrefix(pic.MetaData.MIMEType, "image") {
-		pic.CreateThumbnail()
-	}
-	jsonPicture, jerr := json.Marshal(s)
-	if jerr != nil {
-		panic("Error json marshalling file " + jerr.Error())
-	}
+	adatypes.Central.Log.Debugf("Done set value to Picture, searching ...")
 
-	sr, err := SendJSON(PictureName, jsonPicture)
+	if insert {
+		//fmt.Println("Store record metadata ....", p.MetaData.Md5)
+		err = ps.store.StoreData(pic.MetaData)
+	} else {
+		// fmt.Println("Update record ....", p.MetaData.Md5, "with ISN", p.MetaData.Index)
+		err = ps.store.UpdateData(pic.MetaData)
+	}
+	// fmt.Println("Stored metadata into ISN=", p.MetaData.Index)
 	if err != nil {
+		fmt.Printf("Error storing record metadata: %v %#v", err, pic.MetaData)
 		return err
 	}
-	if sr == nil {
-		return fmt.Errorf("Error store nil")
+	pic.Data.Md5 = pic.MetaData.Md5
+	pic.Data.Index = pic.MetaData.Index
+	if !ps.ChecksumRun {
+		// ok, err = ps.checkPicture(pictureKey)
+		// if err == nil && !ok {
+		// fmt.Println("Store data storage")
+		// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
+		err = ps.storeData.UpdateData(pic.Data, true)
+		if err != nil {
+			fmt.Println("Error storing record data:", err)
+			return err
+		}
+		err = ps.dbReference.Connection.EndTransaction()
+		if err != nil {
+			panic("Data write: end of transaction error: " + err.Error())
+		}
 	}
-	// i, _ := strconv.Atoi(sr.Stored[0])
-	// p.Isn = uint32(i)
-	// pic.MetaData.Isn = uint32(sr.Stored[0])
-	fmt.Println("Created record on ISN=", pic.MetaData.Index)
-	pic.sendBinary(PictureName, true)
-	if strings.HasPrefix(pic.MetaData.MIMEType, "image") {
-		pic.sendBinary(PictureName, false)
+	//}
+	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
+	err = ps.storeThumb.UpdateData(pic.Data)
+	if err != nil {
+		fmt.Printf("Store request error %v\n", err)
+		return err
 	}
+	adatypes.Central.Log.Debugf("Updated record into ISN=%d MD5=%s", pic.MetaData.Index, pic.Data.Md5)
+	err = ps.store.EndTransaction()
+	if err != nil {
+		panic("End of transaction error: " + err.Error())
+	}
+	ps.Loaded++
 	return nil
 }
 
-func (pic *PictureBinary) sendBinary(mapName string, isPicture bool) *StoreResponse {
-	data := pic.Data.Media
-	field := "Media"
-	if !isPicture {
-		data = pic.Data.Thumbnail
-		field = "Thumbnail"
-	}
-	mapURL := strings.Replace(URL, "rest/", "binary/", -1) +
-		"/" + mapName + "/" + strconv.Itoa(int(pic.MetaData.Index)) + "/" + field
-	adatypes.Central.Log.Debugf("Binary URL:>", mapURL, "on ISN=", pic.MetaData.Index)
-
-	bodyBuf := &bytes.Buffer{}
-	bodyWriter := multipart.NewWriter(bodyBuf)
-
-	//bodyWriter.WriteField(k, v.(string))
-	fileWriter, err := bodyWriter.CreateFormFile("uploadLob", pic.FileName)
+func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, directoryName string) (err error) {
+	result, err := ps.readAddAndCheck.ReadLogicalWith("CP=" + pic.Data.ChecksumPicture)
 	if err != nil {
-		fmt.Println(err)
-		//fmt.Println("Create form file error: ", error)
-		return nil
-	}
-	fileWriter.Write(data)
-	contentType := bodyWriter.FormDataContentType()
-	bodyWriter.Close()
-	fmt.Println("Put binary")
-	req, err := http.NewRequest("PUT", mapURL, bodyBuf)
-	c := strings.Split(Credentials, ":")
-	req.SetBasicAuth(c[0], c[1])
-	req.Header.Set("X-Custom-Header", "myvalue")
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println(resp, err)
-		panic(err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := ioutil.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
-		fmt.Println("response Status:", resp.Status)
-		fmt.Println("response Headers:", resp.Header)
-		fmt.Println("response Body:", string(body))
-		fmt.Println("Malformed binary request")
-		return nil
-	}
-	s := &StoreResponse{}
-	json.Unmarshal(body, s)
-	return s
-}
-
-// DeleteMd5 delete picture key
-func (psx *PictureConnection) DeleteMd5(a *adabas.Adabas, key string) error {
-	result, err := psx.readCheck.ReadLogicalWith("Md5=" + key)
-	if err != nil {
-		fmt.Printf("Error checking Md5=%s: %v\n", key, err)
+		fmt.Printf("Error checking PictureHash=%s: %v\n", pic.Data.ChecksumPicture, err)
 		panic("Read error " + err.Error())
 		//		return false, err
 	}
-
-	deleteRequest, err := adabas.NewMapNameDeleteRequest(a, psx.store.MapName)
-	defer deleteRequest.BackoutTransaction()
-	if err != nil {
-		return err
-	}
-	for _, r := range result.Values {
-		deleteRequest.Delete(r.Isn)
-	}
-	return nil
-}
-
-// DeleteIsn delete image Isn
-func (psx *PictureConnection) DeleteIsn(a *adabas.Adabas, isn adatypes.Isn) error {
-	fmt.Printf("Delete image with ISN=%d\n", isn)
-	deleteRequest, err := adabas.NewMapNameDeleteRequest(a, psx.store.MapName)
-	defer deleteRequest.BackoutTransaction()
-	if err != nil {
-		return err
-	}
-	err = deleteRequest.Delete(isn)
-	if err != nil {
-		return err
-	}
-	err = deleteRequest.EndTransaction()
-	return err
-}
-
-// DeletePath delete image given with path
-func (psx *PictureConnection) DeletePath(a *adabas.Adabas, path string) error {
-	if path == "" {
-		return nil
-	}
-	fmt.Printf("Delete image with path=%s\n", path)
-	readRequest, err := adabas.NewReadRequest(a, psx.store.MapName)
-	if err != nil {
-		return err
-	}
-	readRequest.QueryFields("")
-	result, resErr := readRequest.ReadLogicalWith("PictureName=" + path)
-	if resErr != nil {
-		return resErr
-	}
 	if result.NrRecords() != 1 {
-		fmt.Printf("Found more then one or no record: %d\n", result.NrRecords())
-		return fmt.Errorf("Found more then one record")
+		panic("Error receiving nr records for checking")
 	}
-	for _, record := range result.Values {
-		psx.DeleteIsn(a, record.Isn)
+	fmt.Printf("%T", result.Data[0])
+	pm := result.Data[0].(*PictureMetadata)
+	fmt.Println(pm)
+	fmt.Println("Nr locations", len(pm.PictureLocation))
+	location := createPictureLocation(fileName, directoryName)
+	pm.PictureLocation = append(pm.PictureLocation, location)
+
+	err = ps.storeEntries.UpdateData(pm)
+	if err != nil {
+		return err
 	}
+	err = ps.storeEntries.EndTransaction()
+	if err != nil {
+		panic("End of transaction error: " + err.Error())
+	}
+	ps.Added++
+
 	return nil
+}
+
+func createPictureLocation(pictureName, directoryName string) *PictureLocation {
+	picShortName := re.FindStringSubmatch(pictureName)[1]
+	// var re = regexp.MustCompile(`(?m).*/([^/]*)/.*`)
+	// d := re.FindStringSubmatch(pictureName)[1]
+	// fmt.Println("Directory: ", picShortName, re.FindStringSubmatch(pictureName))
+	picHash := createMd5([]byte(pictureName))
+	return &PictureLocation{PictureName: picShortName, PictureHash: picHash, PictureDirectory: directoryName,
+		PictureHost: Hostname}
 }

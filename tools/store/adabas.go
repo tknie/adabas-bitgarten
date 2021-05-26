@@ -3,7 +3,6 @@ package store
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
@@ -12,25 +11,29 @@ import (
 
 // PictureConnection picture connection handle
 type PictureConnection struct {
-	conn        *adabas.Connection
-	store       *adabas.StoreRequest
-	storeData   *adabas.StoreRequest
-	storeThumb  *adabas.StoreRequest
-	readCheck   *adabas.ReadRequest
-	histCheck   *adabas.ReadRequest
-	ShortenName bool
-	ChecksumRun bool
-	Found       uint64
-	Empty       uint64
-	Loaded      uint64
-	Checked     uint64
-	ToBig       uint64
-	Errors      map[string]uint64
-	Filter      []string
-	NrErrors    uint64
-	NrDeleted   uint64
-	Ignored     uint64
-	MaxBlobSize int64
+	dbReference       *DatabaseReference
+	store             *adabas.StoreRequest
+	storeData         *adabas.StoreRequest
+	storeThumb        *adabas.StoreRequest
+	storeEntries      *adabas.StoreRequest
+	readFileNameCheck *adabas.ReadRequest
+	readMediaCheck    *adabas.ReadRequest
+	readAddAndCheck   *adabas.ReadRequest
+	histCheck         *adabas.ReadRequest
+	ShortenName       bool
+	ChecksumRun       bool
+	Found             uint64
+	Empty             uint64
+	Loaded            uint64
+	Added             uint64
+	Checked           uint64
+	ToBig             uint64
+	Errors            map[string]uint64
+	Filter            []string
+	NrErrors          uint64
+	NrDeleted         uint64
+	Ignored           uint64
+	MaxBlobSize       int64
 }
 
 // Hostname of this host
@@ -41,182 +44,6 @@ func init() {
 	if err == nil {
 		Hostname = host
 	}
-}
-
-// InitStorePictureBinary init store picture connection
-func InitStorePictureBinary(shortenName bool) (ps *PictureConnection, err error) {
-	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false,
-		Errors: make(map[string]uint64)}
-	ps.conn, err = adabas.NewConnection("acj;map")
-	if err != nil {
-		return nil, err
-	}
-	ps.store, err = ps.conn.CreateMapStoreRequest((*PictureMetadata)(nil))
-	if err != nil {
-		ps.conn.Close()
-		return nil, err
-	}
-	err = ps.store.StoreFields("*")
-	if err != nil {
-		return nil, err
-	}
-	ps.storeData, err = ps.conn.CreateMapStoreRequest((*PictureData)(nil))
-	if err != nil {
-		ps.conn.Close()
-		return nil, err
-	}
-	err = ps.storeData.StoreFields("Md5,Media")
-	if err != nil {
-		return nil, err
-	}
-	ps.storeThumb, err = ps.conn.CreateMapStoreRequest((*PictureData)(nil))
-	if err != nil {
-		ps.conn.Close()
-		return nil, err
-	}
-	err = ps.storeThumb.StoreFields("Md5,ChecksumPicture,ChecksumThumbnail,Thumbnail")
-	if err != nil {
-		return nil, err
-	}
-	ps.readCheck, err = ps.conn.CreateMapReadRequest("PictureMetadata")
-	if err != nil {
-		ps.conn.Close()
-		return nil, err
-	}
-	err = ps.readCheck.QueryFields("Md5")
-	if err != nil {
-		ps.conn.Close()
-		return nil, err
-	}
-	ps.histCheck, err = ps.conn.CreateMapReadRequest("PictureMetadata")
-	if err != nil {
-		ps.conn.Close()
-		return nil, err
-	}
-	return
-}
-
-// LoadPicture load picture data into database
-func (ps *PictureConnection) LoadPicture(insert bool, fileName string, ada *adabas.Adabas) error {
-	fs := strings.Split(fileName, string(os.PathSeparator))
-	pictureName := fileName
-	if !ps.ShortenName {
-		if fs[len(fs)-2] == "img" {
-			pictureName = fs[len(fs)-3] + "/" + fs[len(fs)-1]
-		} else {
-			pictureName = fs[len(fs)-2] + "/" + fs[len(fs)-1]
-		}
-		fmt.Printf("Shorten name from %s to %s\n", fileName, pictureName)
-	}
-	pictureKey := createMd5([]byte(pictureName))
-	var err error
-	var ok bool
-	ok, err = ps.available(pictureKey)
-	if err != nil {
-		adatypes.Central.Log.Debugf("Availability check error %v", err)
-		return err
-	}
-	empty := checkEmpty(fileName)
-	if empty {
-		adatypes.Central.Log.Debugf(pictureName, "-> picture file empty")
-		ps.Empty++
-		if ok {
-			fmt.Printf("Remove empty file from databaese: %s(%s)\n", fileName, pictureKey)
-			ps.DeleteMd5(ada, pictureKey)
-		}
-		return nil
-	}
-	ps.Checked++
-	if ok && insert {
-		adatypes.Central.Log.Debugf(pictureName, "-> picture name already loaded")
-		ps.Found++
-		return nil
-	}
-	info := "Loading"
-	if !insert {
-		info = "Updating"
-	}
-	fmt.Printf("%s picture ... %s\n", info, fileName)
-	// fmt.Println("-> load picture name ...", pictureName, "Md5=", pictureKey)
-	var re = regexp.MustCompile(`(?m)([^/]*)/.*`)
-	d := re.FindStringSubmatch(pictureName)[1]
-	// fmt.Println("Directory: ", d)
-	p := PictureBinary{FileName: fileName,
-		MetaData: &PictureMetadata{PictureName: pictureName, Directory: d,
-			PictureHost: Hostname, Md5: pictureKey}, MaxBlobSize: ps.MaxBlobSize}
-	err = p.LoadFile()
-	if err != nil {
-		adatypes.Central.Log.Debugf("Load file error %v", err)
-		return err
-	}
-
-	suffix := fileName[strings.LastIndex(fileName, ".")+1:]
-	suffix = strings.ToLower(suffix)
-	switch suffix {
-	case "jpg", "jpeg", "gif":
-		p.MetaData.MIMEType = "image/" + suffix
-		p.ExtractExif()
-		terr := p.CreateThumbnail()
-		if terr != nil {
-			adatypes.Central.Log.Debugf("Create thumbnail error %v", terr)
-			return terr
-		}
-		if p.MetaData.Height > p.MetaData.Width {
-			p.MetaData.Fill = "1"
-		} else {
-			p.MetaData.Fill = "2"
-		}
-	case "m4v", "mov":
-		p.MetaData.MIMEType = "video/mp4"
-		p.MetaData.Fill = "0"
-	default:
-		panic("Unknown suffix " + suffix)
-	}
-	adatypes.Central.Log.Debugf("Done set value to Picture, searching ...")
-
-	if insert {
-		//fmt.Println("Store record metadata ....", p.MetaData.Md5)
-		err = ps.store.StoreData(p.MetaData)
-	} else {
-		// fmt.Println("Update record ....", p.MetaData.Md5, "with ISN", p.MetaData.Index)
-		err = ps.store.UpdateData(p.MetaData)
-	}
-	// fmt.Println("Stored metadata into ISN=", p.MetaData.Index)
-	if err != nil {
-		fmt.Printf("Error storing record metadata: %v %#v", err, p.MetaData)
-		return err
-	}
-	p.Data.Md5 = p.MetaData.Md5
-	p.Data.Index = p.MetaData.Index
-	if !ps.ChecksumRun {
-		ok, err = ps.checkPicture(pictureKey)
-		if err == nil && !ok {
-			// fmt.Println("Store data storage")
-			// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
-			err = ps.storeData.UpdateData(p.Data, true)
-			if err != nil {
-				fmt.Println("Error storing record data:", err)
-				return err
-			}
-			err = ps.conn.EndTransaction()
-			if err != nil {
-				panic("Data write: end of transaction error: " + err.Error())
-			}
-		}
-	}
-	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
-	err = ps.storeThumb.UpdateData(p.Data)
-	if err != nil {
-		fmt.Printf("Store request error %v\n", err)
-		return err
-	}
-	adatypes.Central.Log.Debugf("Updated record into ISN=%d MD5=%s", p.MetaData.Index, p.Data.Md5)
-	err = ps.store.EndTransaction()
-	if err != nil {
-		panic("End of transaction error: " + err.Error())
-	}
-	ps.Loaded++
-	return nil
 }
 
 func checkEmpty(fileName string) bool {
@@ -231,26 +58,43 @@ func checkEmpty(fileName string) bool {
 	return false
 }
 
-func (ps *PictureConnection) available(key string) (bool, error) {
+func (ps *PictureConnection) pictureFileAvailable(key string) (bool, error) {
 	//fmt.Println("Check Md5=" + key)
-	result, err := ps.readCheck.HistogramWith("Md5=" + key)
+	result, err := ps.readFileNameCheck.HistogramWith("PM=" + key)
 	if err != nil {
-		fmt.Printf("Error checking Md5=%s: %v\n", key, err)
+		fmt.Printf("Error checking PictureHash=%s: %v\n", key, err)
 		panic("Read error " + err.Error())
 		//		return false, err
 	}
 	// result.DumpValues()
 	if len(result.Values) > 0 || len(result.Data) > 0 {
-		adatypes.Central.Log.Debugf("Md5=%s is available\n", key)
+		adatypes.Central.Log.Debugf("PM=%s is available\n", key)
 		return true, nil
 	}
-	adatypes.Central.Log.Debugf("Md5=%s is not loaded\n", key)
+	adatypes.Central.Log.Debugf("PM=%s is not loaded\n", key)
+	return false, nil
+}
+
+func (ps *PictureConnection) pictureMediaAvailable(key string) (bool, error) {
+	//fmt.Println("Check Md5=" + key)
+	result, err := ps.readMediaCheck.HistogramWith("CP=" + key)
+	if err != nil {
+		fmt.Printf("Error checking PictureHash=%s: %v\n", key, err)
+		panic("Read error " + err.Error())
+		//		return false, err
+	}
+	// result.DumpValues()
+	if len(result.Values) > 0 || len(result.Data) > 0 {
+		adatypes.Central.Log.Debugf("CP=%s is available\n", key)
+		return true, nil
+	}
+	adatypes.Central.Log.Debugf("CP=%s is not loaded\n", key)
 	return false, nil
 }
 
 func (ps *PictureConnection) checkPicture(key string) (bool, error) {
 	//fmt.Println("Check Md5=" + key)
-	result, err := ps.histCheck.HistogramWith("ChecksumPicture=" + key)
+	result, err := ps.histCheck.HistogramWith("CP=" + key)
 	if err != nil {
 		fmt.Printf("Error checking ChecksumPicture=%s: %v\n", key, err)
 		panic("Read error " + err.Error())
@@ -267,8 +111,8 @@ func (ps *PictureConnection) checkPicture(key string) (bool, error) {
 
 // Close connection
 func (ps *PictureConnection) Close() {
-	if ps != nil && ps.conn != nil {
-		ps.conn.Close()
+	if ps != nil && ps.dbReference.Connection != nil {
+		ps.dbReference.Connection.Close()
 	}
 }
 
