@@ -330,15 +330,11 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 	if err != nil {
 		fmt.Printf("Error checking PictureHash=%s: %v\n", pic.Data.ChecksumPicture, err)
 		panic("Read error " + err.Error())
-		//		return false, err
 	}
 	if result.NrRecords() != 1 {
 		panic("Error receiving nr records for checking")
 	}
-	fmt.Printf("%T", result.Data[0])
 	pm := result.Data[0].(*PictureMetadata)
-	fmt.Println(pm)
-	fmt.Println("Nr locations", len(pm.PictureLocation))
 	location := createPictureLocation(fileName, directoryName)
 	pm.PictureLocation = append(pm.PictureLocation, location)
 
