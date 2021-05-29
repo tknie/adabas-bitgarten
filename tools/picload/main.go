@@ -137,14 +137,14 @@ func main() {
 	flag.StringVar(&pictureDirectory, "D", "", "Directory of picture to be imported")
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
 	flag.StringVar(&filter, "F", "@eadir", "Comma-separated list of parts which may excluded")
-	flag.StringVar(&query, "q", "", "Ignore paths using this regexp")
+	flag.StringVar(&query, "q", ".*/@eaDir/.*", "Ignore paths using this regexp")
 	flag.IntVar(&picFnrParameter, "p", 4, "Picture file number")
 	flag.BoolVar(&verify, "v", false, "Verify data")
 	flag.BoolVar(&update, "u", false, "Update data")
 	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
 	flag.BoolVar(&checksumRun, "c", false, "Checksum run, no data load")
 	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
-	flag.IntVar(&binarySize, "b", 70000000, "Maximum binary blob size")
+	flag.IntVar(&binarySize, "b", 1550000000, "Maximum binary blob size")
 	flag.Parse()
 	dbReference.PictureFile = adabas.Fnr(picFnrParameter)
 
@@ -196,11 +196,23 @@ func main() {
 	}
 
 	if pictureDirectory != "" {
+		c := 0
+		lastChecked := uint64(0)
+		currentFile := ""
 		output := func() {
 			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
 				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors, ps.NrDeleted)
 			fmt.Printf("%s Picture directory added=%d empty=%d ignored=%d\n",
 				time.Now().Format(timeFormat), ps.Added, ps.Empty, ps.Ignored)
+			c++
+			if lastChecked != ps.Checked {
+				c = 0
+			} else {
+				if c > 10 {
+					panic("Multiple loop found in " + currentFile)
+				}
+			}
+			lastChecked = ps.Checked
 		}
 		reg, err := regexp.Compile(query)
 		if err != nil {
@@ -228,6 +240,7 @@ func main() {
 			switch suffix {
 			case "jpg", "jpeg", "gif", "m4v", "mov":
 				adatypes.Central.Log.Debugf("Checking picture file: %s", path)
+				currentFile = path
 				add := true
 				if query != "" {
 					add = checkQueryPath(reg, path)

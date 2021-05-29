@@ -41,6 +41,7 @@ type checker struct {
 	limit           uint64
 	deleteDuplikate bool
 	validateLob     bool
+	picFnr          adabas.Fnr
 }
 
 func init() {
@@ -105,7 +106,7 @@ func initLogLevelWithFile(fileName string, level zapcore.Level) (err error) {
 
 func main() {
 	var dbidParameter string
-	var mapFnrParameter int
+	var picFnrParameter int
 	var limit int
 	var delete bool
 	var validate bool
@@ -113,7 +114,7 @@ func main() {
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
-	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
+	flag.IntVar(&picFnrParameter, "p", 100, "Map repository file number")
 	flag.IntVar(&limit, "l", 10, "Maximum records to read (0 is all)")
 	flag.BoolVar(&delete, "D", false, "Delete duplicate entries")
 	flag.BoolVar(&validate, "V", false, "Validate large object entries")
@@ -136,7 +137,7 @@ func main() {
 	// 	flag.Usage()
 	// 	return
 	// }
-	fmt.Printf("Connect to map repository %s/%d\n", dbidParameter, mapFnrParameter)
+	fmt.Printf("Connect to file at  %s/%d\n", dbidParameter, picFnrParameter)
 
 	id := adabas.NewAdabasID()
 	a, err := adabas.NewAdabas(dbidParameter, id)
@@ -144,9 +145,7 @@ func main() {
 		fmt.Println("Adabas target generation error", err)
 		return
 	}
-	adabas.AddGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	c := &checker{adabas: a, limit: uint64(limit), deleteDuplikate: delete, validateLob: validate}
+	c := &checker{adabas: a, picFnr: adabas.Fnr(picFnrParameter), limit: uint64(limit), deleteDuplikate: delete, validateLob: validate}
 	err = c.analyzeDoublikats()
 	if err != nil {
 		fmt.Println("Error anaylzing douplikats", err)
@@ -154,22 +153,22 @@ func main() {
 }
 
 func (checker *checker) analyzeDoublikats() (err error) {
-	checker.conn, err = adabas.NewConnection("acj;map")
+	checker.conn, err = adabas.NewConnection("acj;target=" + checker.adabas.URL.String())
 	if err != nil {
 		return err
 	}
-	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureData")
+	readCheck, rerr := checker.conn.CreateFileReadRequest(checker.picFnr)
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
 	readCheck.Limit = 0
-	rerr = readCheck.QueryFields("ChecksumPicture")
+	rerr = readCheck.QueryFields("CP")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
-	cursor, err := readCheck.HistogramByCursoring("ChecksumPicture")
+	cursor, err := readCheck.HistogramByCursoring("CP")
 	if err != nil {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
@@ -182,17 +181,17 @@ func (checker *checker) analyzeDoublikats() (err error) {
 			panic("Read error " + recErr.Error())
 		}
 		if checker.validateLob {
-			checker.validateData(record.HashFields["ChecksumPicture"].String())
+			checker.validateData(record.HashFields["CP"].String())
 		}
 		counter++
 		if record.Quantity != 1 {
-			//		record.DumpValues()
 			fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
 			dupli++
-			err = checker.listDuplikats(record.HashFields["ChecksumPicture"].String())
-			if err != nil {
-				return err
-			}
+		}
+		err = checker.listDuplikats()
+		if err != nil {
+			fmt.Printf("List duplicate error: %v\n", err)
+			return nil
 		}
 	}
 	fmt.Printf("There are %06d duplicate of %06d\n", dupli, counter)
@@ -237,35 +236,33 @@ func (checker *checker) validateData(checksum string) error {
 	return nil
 }
 
-func (checker *checker) listDuplikats(checksum string) error {
-	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureMetadata")
+func duplicateStream(record *adabas.Record, x interface{}) error {
+	isnList := x.([]adatypes.Isn)
+	if isnList == nil {
+		isnList = make([]adatypes.Isn, 0)
+	} else {
+		isnList = append(isnList, record.Isn)
+	}
+	fmt.Printf("  ISN=%06d %s\n", record.Isn, record.HashFields["PN"].String())
+	return nil
+}
+
+func (checker *checker) listDuplikats() error {
+	readCheck, rerr := checker.conn.CreateFileReadRequest(checker.picFnr)
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
-	rerr = readCheck.QueryFields("PictureName")
+	rerr = readCheck.QueryFields("#PN")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
-	cursor, err := readCheck.ReadLogicalWithCursoring("ChecksumPicture=" + checksum)
+	var isnList []adatypes.Isn
+	_, err := readCheck.ReadPhysicalSequenceStream(duplicateStream, isnList)
 	if err != nil {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
-	}
-	var isnList []adatypes.Isn
-	for cursor.HasNextRecord() {
-		record, recErr := cursor.NextRecord()
-		if recErr != nil {
-			panic("Read error " + recErr.Error())
-		}
-		if isnList == nil {
-			isnList = make([]adatypes.Isn, 0)
-		} else {
-			isnList = append(isnList, record.Isn)
-		}
-		fmt.Printf("  ISN=%06d %s\n", record.Isn, record.HashFields["PictureName"].String())
-
 	}
 	fmt.Println(isnList)
 	if checker.deleteDuplikate {
