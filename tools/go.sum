@@ -46,6 +46,8 @@ github.com/SoftwareAG/adabas-go-api v1.6.1-0.20210525183720-aa0b04d354de h1:G/Bm
 github.com/SoftwareAG/adabas-go-api v1.6.1-0.20210525183720-aa0b04d354de/go.mod h1:96A+ohjDsF8sp+l0YaErfaJZCvNOC8JmTdxMdwHqiP4=
 github.com/SoftwareAG/adabas-go-api v1.6.1-0.20210526053657-53065b110e41 h1:Jb8cm/D5T+c3SzS7J49B33iXLmk3rVoXIMpqRxoXfGA=
 github.com/SoftwareAG/adabas-go-api v1.6.1-0.20210526053657-53065b110e41/go.mod h1:96A+ohjDsF8sp+l0YaErfaJZCvNOC8JmTdxMdwHqiP4=
+github.com/SoftwareAG/adabas-go-api v1.6.3-0.20210529212309-9c92754e1ee6 h1:Y+uE5Z31DMIXVJcsjdekW5G2tpEhF5abVX+d+XlLtb4=
+github.com/SoftwareAG/adabas-go-api v1.6.3-0.20210529212309-9c92754e1ee6/go.mod h1:96A+ohjDsF8sp+l0YaErfaJZCvNOC8JmTdxMdwHqiP4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

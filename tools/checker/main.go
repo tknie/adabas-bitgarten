@@ -26,6 +26,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"tux-lobload/store"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -150,10 +151,15 @@ func main() {
 	if err != nil {
 		fmt.Println("Error anaylzing douplikats", err)
 	}
+	err = c.listDuplikats()
+	if err != nil {
+		fmt.Printf("List duplicate error: %v\n", err)
+	}
+
 }
 
 func (checker *checker) analyzeDoublikats() (err error) {
-	checker.conn, err = adabas.NewConnection("acj;target=" + checker.adabas.URL.String())
+	checker.conn, err = adabas.NewConnection("acj;inmap=" + checker.adabas.URL.String())
 	if err != nil {
 		return err
 	}
@@ -187,11 +193,6 @@ func (checker *checker) analyzeDoublikats() (err error) {
 		if record.Quantity != 1 {
 			fmt.Printf("quantity=%03d -> %s\n", record.Quantity, record.HashFields["ChecksumPicture"])
 			dupli++
-		}
-		err = checker.listDuplikats()
-		if err != nil {
-			fmt.Printf("List duplicate error: %v\n", err)
-			return nil
 		}
 	}
 	fmt.Printf("There are %06d duplicate of %06d\n", dupli, counter)
@@ -236,35 +237,34 @@ func (checker *checker) validateData(checksum string) error {
 	return nil
 }
 
-func duplicateStream(record *adabas.Record, x interface{}) error {
-	isnList := x.([]adatypes.Isn)
-	if isnList == nil {
-		isnList = make([]adatypes.Isn, 0)
-	} else {
-		isnList = append(isnList, record.Isn)
-	}
-	fmt.Printf("  ISN=%06d %s\n", record.Isn, record.HashFields["PN"].String())
-	return nil
-}
-
 func (checker *checker) listDuplikats() error {
-	readCheck, rerr := checker.conn.CreateFileReadRequest(checker.picFnr)
+	readCheck, rerr := checker.conn.CreateMapReadRequest((*store.PictureMetadata)(nil), int(checker.picFnr))
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
-	rerr = readCheck.QueryFields("#PN")
+	rerr = readCheck.QueryFields("#PL")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
 	var isnList []adatypes.Isn
-	_, err := readCheck.ReadPhysicalSequenceStream(duplicateStream, isnList)
+	cursor, err := readCheck.ReadLogicalWithCursoring("CP>'A'")
 	if err != nil {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
-	fmt.Println(isnList)
+	fmt.Println("Cursor: ", cursor.FieldLength)
+	for cursor.HasNextRecord() {
+		data, err := cursor.NextData()
+		if err != nil {
+			return err
+		}
+		picData := data.(*store.PictureMetadata)
+		if picData.NrPictureLocation > 1 {
+			fmt.Println("Nr picture locations:", picData.NrPictureLocation)
+		}
+	}
 	if checker.deleteDuplikate {
 		return checker.deleteIsns(isnList)
 	}

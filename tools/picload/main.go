@@ -29,6 +29,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"time"
 	"tux-lobload/store"
 
@@ -40,6 +41,7 @@ import (
 
 var hostname string
 var timeFormat = "2006-01-02 15:04:05"
+var wg sync.WaitGroup
 
 func init() {
 	hostname, _ = os.Hostname()
@@ -130,6 +132,7 @@ func main() {
 	var checksumRun bool
 	var shortenName bool
 	var query string
+	var nrThreads int
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 	dbReference := &store.DatabaseReference{}
@@ -139,6 +142,7 @@ func main() {
 	flag.StringVar(&filter, "F", "@eadir", "Comma-separated list of parts which may excluded")
 	flag.StringVar(&query, "q", ".*/@eaDir/.*", "Ignore paths using this regexp")
 	flag.IntVar(&picFnrParameter, "p", 4, "Picture file number")
+	flag.IntVar(&nrThreads, "t", 2, "Nr of parallel storage threads")
 	flag.BoolVar(&verify, "v", false, "Verify data")
 	flag.BoolVar(&update, "u", false, "Update data")
 	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
@@ -146,6 +150,7 @@ func main() {
 	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
 	flag.IntVar(&binarySize, "b", 1550000000, "Maximum binary blob size")
 	flag.Parse()
+	dbReference.Dbid = dbidParameter
 	dbReference.PictureFile = adabas.Fnr(picFnrParameter)
 
 	if *cpuprofile != "" {
@@ -167,25 +172,14 @@ func main() {
 	}
 	fmt.Printf("Connect to map repository %s/%d\n", dbidParameter, picFnrParameter)
 
-	var err error
-	dbReference.Connection, err = adabas.NewConnection(fmt.Sprintf("acj;inmap=%s,%d", dbidParameter, picFnrParameter))
-	if err != nil {
-		fmt.Println("Adabas connection error", err)
-		panic("Adabas communication error")
-	}
-
-	ps, perr := store.InitStorePictureBinary(!shortenName, dbReference)
-	if perr != nil {
-		fmt.Println("Adabas connection error", perr)
-		panic("Adabas communication error")
-	}
-	defer ps.Close()
-
-	ps.ChecksumRun = checksumRun
-	ps.MaxBlobSize = int64(binarySize)
-	ps.Filter = strings.Split(filter, ",")
-
 	if deleteIsn > 0 {
+		ps := createPictureStore(dbReference, shortenName)
+		defer ps.Close()
+
+		ps.ChecksumRun = checksumRun
+		ps.MaxBlobSize = int64(binarySize)
+		ps.Update = update
+		ps.Filter = strings.Split(filter, ",")
 		err := ps.DeleteIsn(adatypes.Isn(deleteIsn))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error deleting Isn=%d: %v", deleteIsn, err)
@@ -200,19 +194,16 @@ func main() {
 		lastChecked := uint64(0)
 		currentFile := ""
 		output := func() {
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors, ps.NrDeleted)
-			fmt.Printf("%s Picture directory added=%d empty=%d ignored=%d\n",
-				time.Now().Format(timeFormat), ps.Added, ps.Empty, ps.Ignored)
+			fmt.Print(store.Statistics.String())
 			c++
-			if lastChecked != ps.Checked {
+			if lastChecked != store.Statistics.Checked {
 				c = 0
 			} else {
 				if c > 10 {
 					panic("Multiple loop found in " + currentFile)
 				}
 			}
-			lastChecked = ps.Checked
+			lastChecked = store.Statistics.Checked
 		}
 		reg, err := regexp.Compile(query)
 		if err != nil {
@@ -222,21 +213,26 @@ func main() {
 
 		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
 		stop := schedule(output, 5*time.Second)
-		err = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
+		pathChan := make(chan string, nrThreads)
+		stopThread := make(chan bool, nrThreads)
+		wg.Add(nrThreads)
+		for i := 0; i < nrThreads; i++ {
+
+			ps := createPictureStore(dbReference, shortenName)
+
+			ps.ChecksumRun = checksumRun
+			ps.MaxBlobSize = int64(binarySize)
+			ps.Update = update
+			ps.Filter = strings.Split(filter, ",")
+			go processImage(ps, pathChan, stopThread)
+		}
+		_ = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
 			if info == nil || info.IsDir() {
 				adatypes.Central.Log.Infof("Info empty or dir: %s", path)
 				return nil
 			}
 			suffix := path[strings.LastIndex(path, ".")+1:]
 			suffix = strings.ToLower(suffix)
-			for _, f := range ps.Filter {
-				if strings.Contains(path, f) {
-					err := ps.DeletePath(path)
-					if err == nil {
-						ps.NrDeleted++
-					}
-				}
-			}
 			switch suffix {
 			case "jpg", "jpeg", "gif", "m4v", "mov":
 				adatypes.Central.Log.Debugf("Checking picture file: %s", path)
@@ -246,23 +242,9 @@ func main() {
 					add = checkQueryPath(reg, path)
 				}
 				if add {
-					err = ps.LoadPicture(!update, path)
-					if err != nil {
-						adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
-						fmt.Fprintln(os.Stderr, "Error loading picture", path, ":", err)
-						if strings.HasPrefix(err.Error(), "File tooo big") {
-							ps.ToBig++
-						} else {
-							if n, ok := ps.Errors[err.Error()]; ok {
-								ps.Errors[err.Error()] = n + 1
-							} else {
-								ps.Errors[err.Error()] = 1
-							}
-							ps.NrErrors++
-						}
-					}
+					pathChan <- path
 				} else {
-					ps.Ignored++
+					store.Statistics.Ignored++
 				}
 			default:
 			}
@@ -272,9 +254,13 @@ func main() {
 		output()
 		fmt.Printf("%s Done\n",
 			time.Now().Format(timeFormat))
-		for e, n := range ps.Errors {
+		for e, n := range store.Statistics.Errors {
 			fmt.Println(e, ":", n)
 		}
+		for i := 0; i < nrThreads; i++ {
+			stopThread <- true
+		}
+		wg.Wait()
 	}
 	if verify {
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
@@ -286,6 +272,58 @@ func main() {
 		fmt.Printf("%s finished verify of database picture content\n", time.Now().Format(timeFormat))
 	}
 
+}
+
+func createPictureStore(dbReference *store.DatabaseReference, shortenName bool) *store.PictureConnection {
+	connection, err := adabas.NewConnection(fmt.Sprintf("acj;inmap=%s,%d", dbReference.Dbid, dbReference.PictureFile))
+	if err != nil {
+		fmt.Println("Adabas connection error", err)
+		panic("Adabas communication error")
+	}
+
+	ps, perr := store.InitStorePictureBinary(!shortenName, dbReference, connection)
+	if perr != nil {
+		fmt.Println("Adabas connection error", perr)
+		panic("Adabas communication error")
+	}
+	return ps
+}
+
+func processImage(ps *store.PictureConnection, pathChan chan string, stopThread chan bool) {
+	defer ps.Close()
+	defer wg.Done()
+	for {
+		select {
+		case <-stopThread:
+			fmt.Println("Close processing thread")
+			return
+		case path := <-pathChan:
+			for _, f := range ps.Filter {
+				if strings.Contains(path, f) {
+					err := ps.DeletePath(path)
+					if err == nil {
+						store.Statistics.NrDeleted++
+					}
+				}
+			}
+
+			err := ps.LoadPicture(!ps.Update, path)
+			if err != nil {
+				adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
+				fmt.Fprintln(os.Stderr, "Error loading picture", path, ":", err)
+				if strings.HasPrefix(err.Error(), "File tooo big") {
+					store.Statistics.ToBig++
+				} else {
+					if n, ok := store.Statistics.Errors[err.Error()]; ok {
+						store.Statistics.Errors[err.Error()] = n + 1
+					} else {
+						store.Statistics.Errors[err.Error()] = 1
+					}
+					store.Statistics.NrErrors++
+				}
+			}
+		}
+	}
 }
 
 func checkQueryPath(reg *regexp.Regexp, path string) bool {

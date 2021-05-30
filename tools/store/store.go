@@ -12,38 +12,37 @@ import (
 const PictureNameSN = "PN"
 
 type DatabaseReference struct {
-	Connection  *adabas.Connection
-	Dbid        adabas.Dbid
+	Dbid        string
 	PictureFile adabas.Fnr
 	AlbumFile   adabas.Fnr
 }
 
 // InitStorePictureBinary init store picture connection
-func InitStorePictureBinary(shortenName bool, dbReference *DatabaseReference) (ps *PictureConnection, err error) {
-	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false,
-		Errors: make(map[string]uint64)}
+func InitStorePictureBinary(shortenName bool, dbReference *DatabaseReference, connection *adabas.Connection) (ps *PictureConnection, err error) {
+	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false}
 	ps.dbReference = dbReference
-	ps.store, err = dbReference.Connection.CreateMapStoreRequest((*PictureMetadata)(nil))
+	ps.connection = connection
+	ps.store, err = connection.CreateMapStoreRequest((*PictureMetadata)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		connection.Close()
 		return nil, err
 	}
 	err = ps.store.StoreFields("*")
 	if err != nil {
 		return nil, err
 	}
-	ps.storeData, err = dbReference.Connection.CreateMapStoreRequest((*PictureData)(nil))
+	ps.storeData, err = ps.connection.CreateMapStoreRequest((*PictureData)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
 	err = ps.storeData.StoreFields("M5,DP")
 	if err != nil {
 		return nil, err
 	}
-	ps.storeThumb, err = dbReference.Connection.CreateMapStoreRequest((*PictureData)(nil))
+	ps.storeThumb, err = ps.connection.CreateMapStoreRequest((*PictureData)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
 	err = ps.storeThumb.StoreFields("M5,CP,DT")
@@ -51,48 +50,48 @@ func InitStorePictureBinary(shortenName bool, dbReference *DatabaseReference) (p
 	if err != nil {
 		return nil, err
 	}
-	ps.storeEntries, err = dbReference.Connection.CreateMapStoreRequest((*PictureMetadata)(nil))
+	ps.storeEntries, err = ps.connection.CreateMapStoreRequest((*PictureMetadata)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
 	err = ps.storeEntries.StoreFields("PL")
 	if err != nil {
 		return nil, err
 	}
-	ps.readFileNameCheck, err = dbReference.Connection.CreateMapReadRequest((*PictureMetadata)(nil))
+	ps.readFileNameCheck, err = ps.connection.CreateMapReadRequest((*PictureMetadata)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
 	err = ps.readFileNameCheck.QueryFields("PM")
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
-	ps.readAddAndCheck, err = dbReference.Connection.CreateMapReadRequest((*PictureMetadata)(nil))
+	ps.readAddAndCheck, err = ps.connection.CreateMapReadRequest((*PictureMetadata)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
 	err = ps.readAddAndCheck.QueryFields("CP,PL")
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
-	ps.readMediaCheck, err = dbReference.Connection.CreateMapReadRequest((*PictureData)(nil))
+	ps.readMediaCheck, err = ps.connection.CreateMapReadRequest((*PictureData)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
 	err = ps.readMediaCheck.QueryFields("CP")
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
-	ps.histCheck, err = dbReference.Connection.CreateMapReadRequest((*PictureMetadata)(nil))
+	ps.histCheck, err = ps.connection.CreateMapReadRequest((*PictureMetadata)(nil))
 	if err != nil {
-		dbReference.Connection.Close()
+		ps.connection.Close()
 		return nil, err
 	}
 	return
@@ -122,17 +121,17 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string) error {
 	empty := checkEmpty(fileName)
 	if empty {
 		adatypes.Central.Log.Debugf(pictureName, "-> picture file empty")
-		ps.Empty++
+		Statistics.Empty++
 		if ok {
 			fmt.Printf("Remove empty file from database: %s(%s)\n", fileName, pictureKey)
 			ps.DeleteMd5(pictureKey)
 		}
 		return nil
 	}
-	ps.Checked++
+	Statistics.Checked++
 	if ok && insert {
 		adatypes.Central.Log.Debugf("%s -> picture name already loaded", pictureName)
-		ps.Found++
+		Statistics.Found++
 		return nil
 	}
 	pictureLocation := createPictureLocation(pictureName, directoryName)
@@ -173,7 +172,7 @@ func (psx *PictureConnection) DeleteMd5(key string) error {
 		//		return false, err
 	}
 
-	deleteRequest, err := psx.dbReference.Connection.CreateDeleteRequest(psx.dbReference.PictureFile)
+	deleteRequest, err := psx.connection.CreateDeleteRequest(psx.dbReference.PictureFile)
 	defer deleteRequest.BackoutTransaction()
 	if err != nil {
 		return err
@@ -187,7 +186,7 @@ func (psx *PictureConnection) DeleteMd5(key string) error {
 // DeleteIsn delete image Isn
 func (psx *PictureConnection) DeleteIsn(isn adatypes.Isn) error {
 	fmt.Printf("Delete image with ISN=%d\n", isn)
-	deleteRequest, err := psx.dbReference.Connection.CreateDeleteRequest(psx.dbReference.PictureFile)
+	deleteRequest, err := psx.connection.CreateDeleteRequest(psx.dbReference.PictureFile)
 	defer deleteRequest.BackoutTransaction()
 	if err != nil {
 		return err
@@ -206,7 +205,7 @@ func (psx *PictureConnection) DeletePath(path string) error {
 		return nil
 	}
 	fmt.Printf("Delete image with path=%s\n", path)
-	readRequest, err := psx.dbReference.Connection.CreateFileReadRequest(psx.dbReference.PictureFile)
+	readRequest, err := psx.connection.CreateFileReadRequest(psx.dbReference.PictureFile)
 	if err != nil {
 		return err
 	}

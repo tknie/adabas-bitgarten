@@ -177,17 +177,7 @@ func main() {
 
 	dbReference := &store.DatabaseReference{}
 
-	dbReference.Connection, err = adabas.NewConnection("acj:inmap=" + dbidParameter)
-	if err != nil {
-		fmt.Println("Adabas connection error", err)
-		return
-	}
-
-	ps, perr := store.InitStorePictureBinary(!shortenName, dbReference)
-	if perr != nil {
-		fmt.Println("Adabas connection error", perr)
-		panic("Adabas communication error")
-	}
+	ps := createPictureStore(dbReference, shortenName)
 	defer ps.Close()
 
 	ps.ChecksumRun = checksumRun
@@ -206,10 +196,7 @@ func main() {
 
 	if pictureDirectory != "" {
 		output := func() {
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.NrErrors, ps.NrDeleted)
-			fmt.Printf("%s Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d ignored=%d errors=%d\n",
-				time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.Ignored, ps.NrErrors)
+			fmt.Println(store.Statistics.String())
 		}
 		reg, err := regexp.Compile(query)
 		if err != nil {
@@ -219,7 +206,7 @@ func main() {
 
 		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
 		stop := schedule(output, 5*time.Second)
-		err = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(pictureDirectory, func(path string, info os.FileInfo, err error) error {
 			if info == nil || info.IsDir() {
 				adatypes.Central.Log.Infof("Info empty or dir: %s", path)
 				return nil
@@ -230,7 +217,7 @@ func main() {
 				if strings.Contains(path, f) {
 					err := ps.DeletePath(path)
 					if err == nil {
-						ps.NrDeleted++
+						store.Statistics.NrDeleted++
 					}
 				}
 			}
@@ -247,18 +234,18 @@ func main() {
 						adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
 						fmt.Fprintln(os.Stderr, "Error loading picture", path, ":", err)
 						if strings.HasPrefix(err.Error(), "File tooo big") {
-							ps.ToBig++
+							store.Statistics.ToBig++
 						} else {
-							if n, ok := ps.Errors[err.Error()]; ok {
-								ps.Errors[err.Error()] = n + 1
+							if n, ok := store.Statistics.Errors[err.Error()]; ok {
+								store.Statistics.Errors[err.Error()] = n + 1
 							} else {
-								ps.Errors[err.Error()] = 1
+								store.Statistics.Errors[err.Error()] = 1
 							}
-							ps.NrErrors++
+							store.Statistics.NrErrors++
 						}
 					}
 				} else {
-					ps.Ignored++
+					store.Statistics.Ignored++
 				}
 			default:
 			}
@@ -266,8 +253,8 @@ func main() {
 		})
 		stop <- true
 		fmt.Printf("%s Done Picture directory checked=%d loaded=%d found=%d too big=%d empty=%d ignored=%d errors=%d\n",
-			time.Now().Format(timeFormat), ps.Checked, ps.Loaded, ps.Found, ps.ToBig, ps.Empty, ps.Ignored, ps.NrErrors)
-		for e, n := range ps.Errors {
+			time.Now().Format(timeFormat), store.Statistics.Checked, store.Statistics.Loaded, store.Statistics.Found, store.Statistics.ToBig, store.Statistics.Empty, store.Statistics.Ignored, store.Statistics.NrErrors)
+		for e, n := range store.Statistics.Errors {
 			fmt.Println(e, ":", n)
 		}
 	}
@@ -281,6 +268,21 @@ func main() {
 		fmt.Printf("%s finished verify of database picture content\n", time.Now().Format(timeFormat))
 	}
 
+}
+
+func createPictureStore(dbReference *store.DatabaseReference, shortenName bool) *store.PictureConnection {
+	connection, err := adabas.NewConnection(fmt.Sprintf("acj;inmap=%s,%d", dbReference.Dbid, dbReference.PictureFile))
+	if err != nil {
+		fmt.Println("Adabas connection error", err)
+		panic("Adabas communication error")
+	}
+
+	ps, perr := store.InitStorePictureBinary(!shortenName, dbReference, connection)
+	if perr != nil {
+		fmt.Println("Adabas connection error", perr)
+		panic("Adabas communication error")
+	}
+	return ps
 }
 
 func checkQueryPath(reg *regexp.Regexp, path string) bool {

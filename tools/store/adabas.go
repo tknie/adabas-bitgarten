@@ -20,9 +20,11 @@
 package store
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -31,6 +33,7 @@ import (
 // PictureConnection picture connection handle
 type PictureConnection struct {
 	dbReference       *DatabaseReference
+	connection        *adabas.Connection
 	store             *adabas.StoreRequest
 	storeData         *adabas.StoreRequest
 	storeThumb        *adabas.StoreRequest
@@ -40,23 +43,30 @@ type PictureConnection struct {
 	readAddAndCheck   *adabas.ReadRequest
 	histCheck         *adabas.ReadRequest
 	ShortenName       bool
+	Update            bool
 	ChecksumRun       bool
-	Found             uint64
-	Empty             uint64
-	Loaded            uint64
-	Added             uint64
-	Checked           uint64
-	ToBig             uint64
-	Errors            map[string]uint64
 	Filter            []string
-	NrErrors          uint64
-	NrDeleted         uint64
-	Ignored           uint64
 	MaxBlobSize       int64
 }
 
+type PictureStatistic struct {
+	Found     uint64
+	Empty     uint64
+	Loaded    uint64
+	Added     uint64
+	Checked   uint64
+	ToBig     uint64
+	NrErrors  uint64
+	Errors    map[string]uint64
+	NrDeleted uint64
+	Ignored   uint64
+}
+
+var Statistics = &PictureStatistic{Errors: make(map[string]uint64)}
+
 // Hostname of this host
 var Hostname = "Unknown"
+var timeFormat = "2006-01-02 15:04:05"
 
 func init() {
 	host, err := os.Hostname()
@@ -75,6 +85,16 @@ func checkEmpty(fileName string) bool {
 		return true
 	}
 	return false
+}
+
+func (stat *PictureStatistic) String() string {
+	var buffer bytes.Buffer
+	buffer.WriteString(fmt.Sprintf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
+		time.Now().Format(timeFormat), stat.Checked, stat.Loaded, stat.Found, stat.ToBig, stat.NrErrors, stat.NrDeleted))
+	buffer.WriteString(fmt.Sprintf("%s Picture directory added=%d empty=%d ignored=%d\n",
+		time.Now().Format(timeFormat), stat.Added, stat.Empty, stat.Ignored))
+
+	return buffer.String()
 }
 
 func (ps *PictureConnection) pictureFileAvailable(key string) (bool, error) {
@@ -130,8 +150,8 @@ func (ps *PictureConnection) checkPicture(key string) (bool, error) {
 
 // Close connection
 func (ps *PictureConnection) Close() {
-	if ps != nil && ps.dbReference.Connection != nil {
-		ps.dbReference.Connection.Close()
+	if ps != nil && ps.connection != nil {
+		ps.connection.Close()
 	}
 }
 

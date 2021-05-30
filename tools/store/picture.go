@@ -47,22 +47,23 @@ type PictureBinary struct {
 
 // PictureMetadata definition
 type PictureMetadata struct {
-	Index           uint64             `adabas:"#isn" json:"-"`
-	Md5             string             `adabas:":key:M5"`
-	Title           string             `adabas:"::TI"`
-	Fill            string             `adabas:"::FI"`
-	MIMEType        string             `adabas:"::TY"`
-	Option          string             `adabas:"::OP"`
-	Width           uint32             `adabas:"::HE"`
-	Height          uint32             `adabas:"::WI"`
-	PictureLocation []*PictureLocation `adabas:"::PL"`
-	ExifModel       string             `adabas:"::MO"`
-	ExifMake        string             `adabas:"::MA"`
-	ExifTaken       string             `adabas:"::TA"`
-	ExifOrigTime    string             `adabas:"::OT"`
-	ExifOrientation byte               `adabas:"::OR"`
-	ExifXdimension  uint32             `adabas:"::XD"`
-	ExifYdimension  uint32             `adabas:"::YD"`
+	Index             uint64             `adabas:"#isn" json:"-"`
+	Md5               string             `adabas:":key:M5"`
+	Title             string             `adabas:"::TI"`
+	Fill              string             `adabas:"::FI"`
+	MIMEType          string             `adabas:"::TY"`
+	Option            string             `adabas:"::OP"`
+	Width             uint32             `adabas:"::HE"`
+	Height            uint32             `adabas:"::WI"`
+	NrPictureLocation int                `adabas:"::#PL"`
+	PictureLocation   []*PictureLocation `adabas:"::PL"`
+	ExifModel         string             `adabas:"::MO"`
+	ExifMake          string             `adabas:"::MA"`
+	ExifTaken         string             `adabas:"::TA"`
+	ExifOrigTime      string             `adabas:"::OT"`
+	ExifOrientation   byte               `adabas:"::OR"`
+	ExifXdimension    uint32             `adabas:"::XD"`
+	ExifYdimension    uint32             `adabas:"::YD"`
 }
 
 type PictureLocation struct {
@@ -315,7 +316,7 @@ func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err e
 			fmt.Println("Error storing record data:", err)
 			return err
 		}
-		err = ps.dbReference.Connection.EndTransaction()
+		err = ps.connection.EndTransaction()
 		if err != nil {
 			panic("Data write: end of transaction error: " + err.Error())
 		}
@@ -332,7 +333,7 @@ func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err e
 	if err != nil {
 		panic("End of transaction error: " + err.Error())
 	}
-	ps.Loaded++
+	Statistics.Loaded++
 	return nil
 }
 
@@ -357,7 +358,7 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 	if err != nil {
 		panic("End of transaction error: " + err.Error())
 	}
-	ps.Added++
+	Statistics.Added++
 
 	return nil
 }
