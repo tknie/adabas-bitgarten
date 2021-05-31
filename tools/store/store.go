@@ -19,7 +19,7 @@ type DatabaseReference struct {
 
 // InitStorePictureBinary init store picture connection
 func InitStorePictureBinary(shortenName bool, dbReference *DatabaseReference, connection *adabas.Connection) (ps *PictureConnection, err error) {
-	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false}
+	ps = &PictureConnection{ShortenName: shortenName, ChecksumRun: false, Verbose: false}
 	ps.dbReference = dbReference
 	ps.connection = connection
 	ps.store, err = connection.CreateMapStoreRequest((*PictureMetadata)(nil))
@@ -108,7 +108,9 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string) error {
 		} else {
 			pictureName = fs[len(fs)-2] + "/" + fs[len(fs)-1]
 		}
-		fmt.Printf("Shorten name from %s to %s\n", fileName, pictureName)
+		if ps.Verbose {
+			fmt.Printf("Shorten name from %s to %s\n", fileName, pictureName)
+		}
 	}
 	pictureKey := createMd5([]byte(pictureName))
 	var err error
@@ -150,14 +152,19 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string) error {
 		return merr
 	}
 	if !mediaAvailable {
-		info := "Loading"
-		if !insert {
-			info = "Updating"
+		if ps.Verbose {
+			info := "Loading"
+			if !insert {
+				info = "Updating"
+			}
+			fmt.Printf("%s picture ... %s\r", info, fileName)
+
 		}
-		fmt.Printf("%s picture ... %s\r", info, fileName)
 		p.storeRecord(insert, ps)
 	} else {
-		fmt.Printf("Skipping picture ... %s [%s]\r", fileName, p.Data.ChecksumPicture)
+		if ps.Verbose {
+			fmt.Printf("Skipping picture ... %s [%s]\r", fileName, p.Data.ChecksumPicture)
+		}
 		p.checkAndAddFile(ps, fileName, directoryName)
 	}
 	return nil
@@ -216,7 +223,7 @@ func (psx *PictureConnection) DeletePath(path string) error {
 	}
 	if result.NrRecords() != 1 {
 		fmt.Printf("Found more then one or no record: %d\n", result.NrRecords())
-		return fmt.Errorf("Found more then one record")
+		return fmt.Errorf("found more then one record")
 	}
 	for _, record := range result.Values {
 		psx.DeleteIsn(record.Isn)

@@ -128,6 +128,7 @@ func main() {
 	var deleteIsn int
 	var binarySize int
 	var verify bool
+	var verbose bool
 	var update bool
 	var checksumRun bool
 	var shortenName bool
@@ -143,7 +144,8 @@ func main() {
 	flag.StringVar(&query, "q", ".*/@eaDir/.*", "Ignore paths using this regexp")
 	flag.IntVar(&picFnrParameter, "p", 4, "Picture file number")
 	flag.IntVar(&nrThreads, "t", 2, "Nr of parallel storage threads")
-	flag.BoolVar(&verify, "v", false, "Verify data")
+	flag.BoolVar(&verify, "V", false, "Verify data")
+	flag.BoolVar(&verbose, "v", false, "Verbose output")
 	flag.BoolVar(&update, "u", false, "Update data")
 	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
 	flag.BoolVar(&checksumRun, "c", false, "Checksum run, no data load")
@@ -179,6 +181,7 @@ func main() {
 		ps.ChecksumRun = checksumRun
 		ps.MaxBlobSize = int64(binarySize)
 		ps.Update = update
+		ps.Verbose = verbose
 		ps.Filter = strings.Split(filter, ",")
 		err := ps.DeleteIsn(adatypes.Isn(deleteIsn))
 		if err != nil {
@@ -213,8 +216,9 @@ func main() {
 			fmt.Println("Query error regexp:", err)
 			return
 		}
-
-		fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
+		if verbose {
+			fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
+		}
 		stop := schedule(output, 5*time.Second)
 		pathChan := make(chan string, nrThreads)
 		stopThread := make(chan bool, nrThreads)
@@ -226,6 +230,7 @@ func main() {
 			ps.ChecksumRun = checksumRun
 			ps.MaxBlobSize = int64(binarySize)
 			ps.Update = update
+			ps.Verbose = verbose
 			ps.Filter = strings.Split(filter, ",")
 			go processImage(ps, pathChan, stopThread)
 		}
@@ -297,7 +302,9 @@ func processImage(ps *store.PictureConnection, pathChan chan string, stopThread 
 	for {
 		select {
 		case <-stopThread:
-			fmt.Println("Close processing thread")
+			if ps.Verbose {
+				fmt.Println("Close processing thread")
+			}
 			return
 		case path := <-pathChan:
 			for _, f := range ps.Filter {

@@ -95,9 +95,12 @@ func (pic *PictureBinary) LoadFile() error {
 	}
 	defer f.Close()
 	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
 	pic.Data = &PictureData{}
 	if fi.Size() > pic.MaxBlobSize {
-		return fmt.Errorf("File tooo big %d>%d", fi.Size(), pic.MaxBlobSize)
+		return fmt.Errorf("file tooo big %d>%d", fi.Size(), pic.MaxBlobSize)
 	}
 	pic.Data.Media = make([]byte, fi.Size())
 	var n int
@@ -246,7 +249,7 @@ func (pic *PictureBinary) ReadDatabase(connection *adabas.Connection, hash, repo
 		return
 	}
 	if len(result.Data) == 0 {
-		return fmt.Errorf("No data found")
+		return fmt.Errorf("no data found")
 	}
 	resultPic := result.Data[0].(*PictureBinary)
 	*pic = *resultPic

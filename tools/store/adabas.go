@@ -45,6 +45,7 @@ type PictureConnection struct {
 	ShortenName       bool
 	Update            bool
 	ChecksumRun       bool
+	Verbose           bool
 	Filter            []string
 	MaxBlobSize       int64
 	CurrentFile       string
@@ -132,7 +133,7 @@ func (ps *PictureConnection) pictureMediaAvailable(key string) (bool, error) {
 	return false, nil
 }
 
-func (ps *PictureConnection) checkPicture(key string) (bool, error) {
+/* func (ps *PictureConnection) checkPicture(key string) (bool, error) {
 	//fmt.Println("Check Md5=" + key)
 	result, err := ps.histCheck.HistogramWith("CP=" + key)
 	if err != nil {
@@ -147,7 +148,7 @@ func (ps *PictureConnection) checkPicture(key string) (bool, error) {
 	}
 	adatypes.Central.Log.Debugf("ChecksumPicture=%s is not loaded\n", key)
 	return false, nil
-}
+}*/
 
 // Close connection
 func (ps *PictureConnection) Close() {
@@ -177,7 +178,7 @@ func verifyPictureRecord(record *adabas.Record, x interface{}) error {
 	if md != smd {
 		fmt.Printf("MD5 data=<%s> expected=<%s>\n", md, smd)
 		fmt.Println("Record checksum error", record.Isn)
-		return fmt.Errorf("Record checksum error")
+		return fmt.Errorf("record checksum error")
 	}
 	return nil
 }
