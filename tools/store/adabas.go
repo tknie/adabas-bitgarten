@@ -47,6 +47,7 @@ type PictureConnection struct {
 	ChecksumRun       bool
 	Filter            []string
 	MaxBlobSize       int64
+	CurrentFile       string
 }
 
 type PictureStatistic struct {

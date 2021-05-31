@@ -192,15 +192,18 @@ func main() {
 	if pictureDirectory != "" {
 		c := 0
 		lastChecked := uint64(0)
-		currentFile := ""
+		psList := make([]*store.PictureConnection, 0)
 		output := func() {
 			fmt.Print(store.Statistics.String())
 			c++
 			if lastChecked != store.Statistics.Checked {
 				c = 0
 			} else {
-				if c > 10 {
-					panic("Multiple loop found in " + currentFile)
+				if c > 25 {
+					for i, ps := range psList {
+						fmt.Println(i, ". works on ", ps.CurrentFile)
+					}
+					panic("Multiple loop found")
 				}
 			}
 			lastChecked = store.Statistics.Checked
@@ -219,7 +222,7 @@ func main() {
 		for i := 0; i < nrThreads; i++ {
 
 			ps := createPictureStore(dbReference, shortenName)
-
+			psList = append(psList, ps)
 			ps.ChecksumRun = checksumRun
 			ps.MaxBlobSize = int64(binarySize)
 			ps.Update = update
@@ -236,7 +239,6 @@ func main() {
 			switch suffix {
 			case "jpg", "jpeg", "gif", "m4v", "mov":
 				adatypes.Central.Log.Debugf("Checking picture file: %s", path)
-				currentFile = path
 				add := true
 				if query != "" {
 					add = checkQueryPath(reg, path)
@@ -307,6 +309,7 @@ func processImage(ps *store.PictureConnection, pathChan chan string, stopThread 
 				}
 			}
 
+			ps.CurrentFile = path
 			err := ps.LoadPicture(!ps.Update, path)
 			if err != nil {
 				adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
