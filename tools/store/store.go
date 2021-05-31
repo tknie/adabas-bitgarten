@@ -157,7 +157,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string) error {
 		fmt.Printf("%s picture ... %s\r", info, fileName)
 		p.storeRecord(insert, ps)
 	} else {
-		fmt.Printf("Skipping picture ... %s [%s]\n", fileName, p.Data.ChecksumPicture)
+		fmt.Printf("Skipping picture ... %s [%s]\r", fileName, p.Data.ChecksumPicture)
 		p.checkAndAddFile(ps, fileName, directoryName)
 	}
 	return nil
