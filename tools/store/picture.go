@@ -347,11 +347,17 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 		panic("Error receiving nr records for checking")
 	}
 	pm := result.Data[0].(*PictureMetadata)
+	ph := make(map[string]bool)
 	for _, p := range pm.PictureLocation {
 		if p.PictureDirectory == directoryName && p.PictureHost == Hostname {
 			Statistics.Found++
 			return nil
 		}
+		x := directoryName + "-" + Hostname
+		if _, ok := ph[x]; ok {
+			fmt.Println("Duplicate found", x)
+		}
+		ph[x] = true
 	}
 	location := createPictureLocation(fileName, directoryName)
 	pm.PictureLocation = append(pm.PictureLocation, location)
