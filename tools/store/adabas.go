@@ -52,16 +52,17 @@ type PictureConnection struct {
 }
 
 type PictureStatistic struct {
-	Found     uint64
-	Empty     uint64
-	Loaded    uint64
-	Added     uint64
-	Checked   uint64
-	ToBig     uint64
-	NrErrors  uint64
-	Errors    map[string]uint64
-	NrDeleted uint64
-	Ignored   uint64
+	Found      uint64
+	Empty      uint64
+	Loaded     uint64
+	Added      uint64
+	Checked    uint64
+	ToBig      uint64
+	NrErrors   uint64
+	Duplicated uint64
+	Errors     map[string]uint64
+	NrDeleted  uint64
+	Ignored    uint64
 }
 
 var Statistics = &PictureStatistic{Errors: make(map[string]uint64)}
@@ -93,8 +94,8 @@ func (stat *PictureStatistic) String() string {
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("%s Picture directory checked=%d loaded=%d found=%d too big=%d errors=%d deleted=%d\n",
 		time.Now().Format(timeFormat), stat.Checked, stat.Loaded, stat.Found, stat.ToBig, stat.NrErrors, stat.NrDeleted))
-	buffer.WriteString(fmt.Sprintf("%s Picture directory added=%d empty=%d ignored=%d\n",
-		time.Now().Format(timeFormat), stat.Added, stat.Empty, stat.Ignored))
+	buffer.WriteString(fmt.Sprintf("%s Picture directory added=%d empty=%d ignored=%d duplicated=%d\n",
+		time.Now().Format(timeFormat), stat.Added, stat.Empty, stat.Ignored, stat.Duplicated))
 
 	return buffer.String()
 }

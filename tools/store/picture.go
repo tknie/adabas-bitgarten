@@ -357,9 +357,7 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 			return nil
 		}
 		x := directoryName + "-" + Hostname
-		if _, ok := ph[x]; ok {
-			fmt.Println("Duplicate found", x)
-		} else {
+		if _, ok := ph[x]; !ok {
 			ph[x] = p
 		}
 	}
@@ -367,6 +365,9 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 	if len(pm.PictureLocation) == len(ph) {
 		pm.PictureLocation = append(pm.PictureLocation, location)
 	} else {
+		if ps.Verbose {
+			fmt.Println("Duplicate found for ", location.PictureDirectory, len(pm.PictureLocation), len(ph))
+		}
 		newPLList := make([]*PictureLocation, 0)
 		for _, p := range ph {
 			newPLList = append(newPLList, p)
@@ -376,6 +377,7 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 			newPLList = append(newPLList, &PictureLocation{})
 		}
 		pm.PictureLocation = newPLList
+		Statistics.Duplicated++
 	}
 
 	err = ps.storeEntries.UpdateData(pm)
