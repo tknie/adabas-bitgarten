@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 	"tux-lobload/store"
 
@@ -40,9 +41,13 @@ import (
 var hostname string
 
 type deleter struct {
-	re            *regexp.Regexp
+	re            []*regexp.Regexp
 	deleteRequest *adabas.DeleteRequest
 	test          bool
+	picFnr        adabas.Fnr
+	found         uint64
+	deleted       uint64
+	transactions  uint64
 	counter       uint64
 }
 
@@ -139,8 +144,8 @@ func main() {
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
-	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
-	flag.IntVar(&mapFnrParameter, "f", 4, "Map repository file number")
+	flag.StringVar(&dbidParameter, "d", "23", "Database id")
+	flag.IntVar(&mapFnrParameter, "p", 100, "Picture file number")
 	flag.IntVar(&limit, "l", 10, "Maximum records to read (0 is all)")
 	flag.BoolVar(&test, "t", false, "Dry run, don't change")
 	flag.BoolVar(&validate, "v", false, "Validate uniquness of media content")
@@ -168,27 +173,27 @@ func main() {
 		fmt.Println("Test mode ENABLED")
 	}
 
-	id := adabas.NewAdabasID()
-	a, err := adabas.NewAdabas(dbidParameter, id)
-	if err != nil {
-		fmt.Println("Adabas target generation error", err)
-		return
-	}
-	adabas.AddGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-	defer adabas.DelGlobalMapRepository(a.URL, adabas.Fnr(mapFnrParameter))
-
-	fmt.Printf("Connect to map repository %s/%d\n", dbidParameter, mapFnrParameter)
+	fmt.Printf("Connect to %s/%d\n", dbidParameter, mapFnrParameter)
 	if query != "" {
-		d := &deleter{test: test}
+		d := &deleter{test: test, picFnr: adabas.Fnr(mapFnrParameter)}
 		fmt.Println("Clear using exclude mask with: " + query)
-		re, err := regexp.Compile(query)
+		queries := strings.Split(query, ",")
+		for _, q := range queries {
+			re, err := regexp.Compile(q)
+			if err != nil {
+				fmt.Println("Query error regexp:", err)
+				return
+			}
+			d.re = append(d.re, re)
+
+		}
+		connection, err := adabas.NewConnection(fmt.Sprintf("acj;inmap=%s,%d", dbidParameter, mapFnrParameter))
 		if err != nil {
-			fmt.Println("Query error regexp:", err)
+			fmt.Println("Error getting connection")
 			return
 		}
-		d.re = re
-
-		err = removeQueries(a, d, uint64(limit))
+		connection.Close()
+		err = removeQueries(connection, d, uint64(limit))
 		if err != nil {
 			fmt.Println("Error anaylzing douplikats", err)
 		}
@@ -200,46 +205,55 @@ func main() {
 }
 
 func removeQuery(record *adabas.Record, x interface{}) error {
-	fn := record.HashFields["PictureName"].String()
+	fn := record.HashFields["PD"].String()
 	de := x.(*deleter)
-	found := de.re.MatchString(fn)
+	found := false
+	for _, re := range de.re {
+		found = re.MatchString(fn)
+		if found {
+			break
+		}
+	}
 	if found {
-		fmt.Println("Found :" + fn)
+		fmt.Println("Found :", fn, "ISN:", record.Isn)
 		if !de.test {
-			de.deleteRequest.Delete(record.Isn)
-			de.counter++
-			if de.counter%100 == 0 {
-				err := de.deleteRequest.EndTransaction()
+			err := de.deleteRequest.Delete(record.Isn)
+			if err != nil {
 				return err
 			}
+			de.deleted++
+			if de.counter%100 == 0 {
+				err := de.deleteRequest.EndTransaction()
+				if err != nil {
+					return err
+				}
+				de.transactions++
+			}
 		}
+		de.found++
 	} else {
 		//	fmt.Println("Ignore :" + fn)
 	}
+	de.counter++
 	return nil
 }
 
-func removeQueries(a *adabas.Adabas, de *deleter, limit uint64) error {
-	conn, err := adabas.NewConnection("acj;map")
+func removeQueries(conn *adabas.Connection, de *deleter, limit uint64) error {
+	readCheck, err := conn.CreateFileReadRequest(de.picFnr)
 	if err != nil {
+		conn.Close()
 		return err
 	}
-	defer conn.Close()
-	readCheck, rerr := conn.CreateMapReadRequest("PictureMetadata")
-	if rerr != nil {
-		conn.Close()
-		return rerr
-	}
-	de.deleteRequest, err = conn.CreateMapDeleteRequest("PictureMetadata")
+	de.deleteRequest, err = conn.CreateDeleteRequest(de.picFnr)
 	if err != nil {
 		conn.Close()
 		return err
 	}
 	readCheck.Limit = limit
-	rerr = readCheck.QueryFields("PictureName")
-	if rerr != nil {
+	err = readCheck.QueryFields("PD")
+	if err != nil {
 		conn.Close()
-		return rerr
+		return err
 	}
 	_, err = readCheck.ReadPhysicalSequenceStream(removeQuery, de)
 	if err != nil {
@@ -247,6 +261,7 @@ func removeQueries(a *adabas.Adabas, de *deleter, limit uint64) error {
 		de.deleteRequest.BackoutTransaction()
 		panic("Read error " + err.Error())
 	}
+	fmt.Printf("Check %d records, found=%d, deleted=%d,transactions=%d\n", de.counter, de.found, de.deleted, de.transactions)
 	err = de.deleteRequest.EndTransaction()
 	return err
 }
