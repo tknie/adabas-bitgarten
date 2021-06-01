@@ -321,7 +321,7 @@ func processImage(ps *store.PictureConnection, pathChan chan string, stopThread 
 			if err != nil {
 				adatypes.Central.Log.Debugf("Loaded %s with error=%v", ps, err)
 				fmt.Fprintln(os.Stderr, "Error loading picture", path, ":", err)
-				if strings.HasPrefix(err.Error(), "File tooo big") {
+				if strings.HasPrefix(err.Error(), "file tooo big") {
 					store.Statistics.ToBig++
 				} else {
 					if n, ok := store.Statistics.Errors[err.Error()]; ok {
