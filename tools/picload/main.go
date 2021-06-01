@@ -211,10 +211,15 @@ func main() {
 			}
 			lastChecked = store.Statistics.Checked
 		}
-		reg, err := regexp.Compile(query)
-		if err != nil {
-			fmt.Println("Query error regexp:", err)
-			return
+		queries := strings.Split(query, ",")
+		reg := make([]*regexp.Regexp, 0)
+		for _, q := range queries {
+			r, err := regexp.Compile(q)
+			if err != nil {
+				fmt.Println("Query error regexp:", err)
+				return
+			}
+			reg = append(reg, r)
 		}
 		if verbose {
 			fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
@@ -246,7 +251,12 @@ func main() {
 				adatypes.Central.Log.Debugf("Checking picture file: %s", path)
 				add := true
 				if query != "" {
-					add = checkQueryPath(reg, path)
+					for _, r := range reg {
+						add = checkQueryPath(r, path)
+						if !add {
+							break
+						}
+					}
 				}
 				if add {
 					pathChan <- path
