@@ -26,6 +26,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"time"
 	"tux-lobload/store"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
@@ -44,6 +45,8 @@ type checker struct {
 	validateLob     bool
 	picFnr          adabas.Fnr
 }
+
+var timeFormat = "2006-01-02 15:04:05"
 
 func init() {
 	hostname, _ = os.Hostname()
@@ -111,6 +114,7 @@ func main() {
 	var limit int
 	var delete bool
 	var validate bool
+	var verify bool
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 
@@ -119,6 +123,7 @@ func main() {
 	flag.IntVar(&limit, "l", 10, "Maximum records to read (0 is all)")
 	flag.BoolVar(&delete, "D", false, "Delete duplicate entries")
 	flag.BoolVar(&validate, "V", false, "Validate large object entries")
+	flag.BoolVar(&verify, "c", false, "Verify image content")
 	flag.Parse()
 
 	if *cpuprofile != "" {
@@ -154,6 +159,15 @@ func main() {
 	err = c.listDuplikats()
 	if err != nil {
 		fmt.Printf("List duplicate error: %v\n", err)
+	}
+	if verify {
+		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
+		err := store.VerifyPicture("PictureData", fmt.Sprintf("%s,%d", dbidParameter, picFnrParameter))
+		if err != nil {
+			fmt.Printf("%s Error during verify of database picture content: %v\n", time.Now().Format(timeFormat), err)
+			return
+		}
+		fmt.Printf("%s finished verify of database picture content\n", time.Now().Format(timeFormat))
 	}
 
 }
@@ -243,27 +257,68 @@ func (checker *checker) listDuplikats() error {
 		checker.conn.Close()
 		return rerr
 	}
-	rerr = readCheck.QueryFields("#PL")
+	readCheck.Limit = 0
+	rerr = readCheck.QueryFields("#PL,PL")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
 	var isnList []adatypes.Isn
-	cursor, err := readCheck.ReadLogicalWithCursoring("CP>'A'")
+	cursor, err := readCheck.ReadLogicalWithCursoring("CP>=' '")
 	if err != nil {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
-	fmt.Println("Cursor: ", cursor.FieldLength)
+	fmt.Println("Start checking ...")
+	quantityStatistics := make(map[int]int)
+	lenStatistics := make(map[int]int)
+	counter := 0
 	for cursor.HasNextRecord() {
+		if counter%10000 == 0 {
+			fmt.Printf("Working on %d\r", counter)
+		}
+		counter++
 		data, err := cursor.NextData()
 		if err != nil {
 			return err
 		}
 		picData := data.(*store.PictureMetadata)
-		if picData.NrPictureLocation > 1 {
-			fmt.Println("Nr picture locations:", picData.NrPictureLocation)
+
+		checkDuplicate := make(map[string]int)
+		for _, p := range picData.PictureLocation {
+			q := p.PictureDirectory + "-" + p.PictureHost
+			if n, ok := checkDuplicate[q]; ok {
+				checkDuplicate[q] = n + 1
+			} else {
+				checkDuplicate[q] = 1
+			}
 		}
+		l := len(picData.PictureLocation)
+		if len(checkDuplicate) != l {
+			fmt.Println("Duplicates found....", picData.Index)
+			for n, v := range checkDuplicate {
+				fmt.Printf("%s = %d", n, v)
+			}
+		}
+		if quantity, ok := quantityStatistics[picData.NrPictureLocation]; ok {
+			quantityStatistics[picData.NrPictureLocation] = quantity + 1
+		} else {
+			quantityStatistics[picData.NrPictureLocation] = 1
+		}
+		if ln, ok := lenStatistics[l]; ok {
+			lenStatistics[l] = ln + 1
+		} else {
+			lenStatistics[l] = 1
+		}
+	}
+	fmt.Printf("Have analysed %d records\n", counter)
+	fmt.Printf("\nSchema quantity of picture location:\n")
+	for q, c := range quantityStatistics {
+		fmt.Printf("%3d - %2d\n", q, c)
+	}
+	fmt.Printf("\nSchema length of picture location:\n")
+	for q, c := range lenStatistics {
+		fmt.Printf("%3d - %2d\n", q, c)
 	}
 	if checker.deleteDuplikate {
 		return checker.deleteIsns(isnList)

@@ -316,7 +316,7 @@ func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err e
 		// fmt.Println("Update record data ....", p.Data.Md5, " of size ", len(p.Data.Media))
 		err = ps.storeData.UpdateData(pic.Data, true)
 		if err != nil {
-			fmt.Println("Error storing record data:", err)
+			fmt.Println("Error updating record data:", err)
 			return err
 		}
 		err = ps.connection.EndTransaction()
@@ -328,7 +328,7 @@ func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err e
 	// fmt.Println("Update record thumbnail ....", p.Data.Md5)
 	err = ps.storeThumb.UpdateData(pic.Data)
 	if err != nil {
-		fmt.Printf("Store request error %v\n", err)
+		fmt.Printf("Updating thumbnail request error %d: %v\n", pic.Data.Index, err)
 		return err
 	}
 	adatypes.Central.Log.Debugf("Updated record into ISN=%d MD5=%s", pic.MetaData.Index, pic.Data.Md5)
@@ -356,7 +356,7 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 			Statistics.Found++
 			return nil
 		}
-		x := directoryName + "-" + Hostname
+		x := p.PictureDirectory + "-" + p.PictureHost
 		if _, ok := ph[x]; !ok {
 			ph[x] = p
 		}
