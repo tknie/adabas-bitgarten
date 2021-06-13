@@ -356,6 +356,7 @@ func (pic *PictureBinary) checkAndAddFile(ps *PictureConnection, fileName, direc
 			Statistics.Found++
 			return nil
 		}
+
 		x := p.PictureDirectory + "-" + p.PictureHost
 		if _, ok := ph[x]; !ok {
 			ph[x] = p

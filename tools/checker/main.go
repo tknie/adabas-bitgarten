@@ -44,6 +44,7 @@ type checker struct {
 	deleteDuplikate bool
 	validateLob     bool
 	picFnr          adabas.Fnr
+	maxOccurance    int
 }
 
 var timeFormat = "2006-01-02 15:04:05"
@@ -112,6 +113,7 @@ func main() {
 	var dbidParameter string
 	var picFnrParameter int
 	var limit int
+	var occurance int
 	var delete bool
 	var validate bool
 	var verify bool
@@ -121,6 +123,7 @@ func main() {
 	flag.StringVar(&dbidParameter, "d", "23", "Map repository Database id")
 	flag.IntVar(&picFnrParameter, "p", 100, "Map repository file number")
 	flag.IntVar(&limit, "l", 10, "Maximum records to read (0 is all)")
+	flag.IntVar(&occurance, "o", 50, "Maximum occurance of directory entries")
 	flag.BoolVar(&delete, "D", false, "Delete duplicate entries")
 	flag.BoolVar(&validate, "V", false, "Validate large object entries")
 	flag.BoolVar(&verify, "c", false, "Verify image content")
@@ -151,7 +154,9 @@ func main() {
 		fmt.Println("Adabas target generation error", err)
 		return
 	}
-	c := &checker{adabas: a, picFnr: adabas.Fnr(picFnrParameter), limit: uint64(limit), deleteDuplikate: delete, validateLob: validate}
+	c := &checker{adabas: a, picFnr: adabas.Fnr(picFnrParameter),
+		limit: uint64(limit), deleteDuplikate: delete,
+		maxOccurance: occurance, validateLob: validate}
 	err = c.analyzeDoublikats()
 	if err != nil {
 		fmt.Println("Error anaylzing douplikats", err)
@@ -182,7 +187,7 @@ func (checker *checker) analyzeDoublikats() (err error) {
 		checker.conn.Close()
 		return rerr
 	}
-	readCheck.Limit = 0
+	readCheck.Limit = checker.limit
 	rerr = readCheck.QueryFields("CP")
 	if rerr != nil {
 		checker.conn.Close()
@@ -214,38 +219,37 @@ func (checker *checker) analyzeDoublikats() (err error) {
 }
 
 func (checker *checker) validateData(checksum string) error {
-	readCheck, rerr := checker.conn.CreateMapReadRequest("PictureBinary")
+	readCheck, rerr := checker.conn.CreateMapReadRequest((*store.PictureData)(nil), 100)
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
-	rerr = readCheck.QueryFields("ChecksumPicture,PictureName,Media")
+	rerr = readCheck.QueryFields("CP,PD,DP")
 	if rerr != nil {
 		checker.conn.Close()
 		return rerr
 	}
 	readCheck.Multifetch = 1
 	adatypes.Central.Log.Debugf("Read checksums records")
-	cursor, err := readCheck.ReadLogicalWithCursoring("ChecksumPicture=" + checksum)
+	cursor, err := readCheck.ReadLogicalWithCursoring("CP=" + checksum)
 	if err != nil {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
 	adatypes.Central.Log.Debugf("Called and get next record")
 	for cursor.HasNextRecord() {
-		record, recErr := cursor.NextRecord()
+		data, recErr := cursor.NextData()
 		if recErr != nil {
 			panic("Read error " + recErr.Error())
 		}
-		mv := record.HashFields["Media"]
-		adatypes.Central.Log.Debugf("Length %d %#v", mv.Type().Length(), mv)
-		fmt.Println("Length", record.HashFields["Media"].Type().Length())
-		data := record.HashFields["Media"].Bytes()
-		if len(data) == 0 {
-			fmt.Printf("Empty data %s for ChecksumPicture\n", record.HashFields["PictureName"].String())
-			panic("Empty media error " + record.HashFields["PictureName"].String())
+		picData := data.(*store.PictureData)
+		adatypes.Central.Log.Debugf("Length %d", len(picData.Media))
+		fmt.Println("Length", len(picData.Media))
+		if len(picData.Media) == 0 {
+			fmt.Printf("Empty data for ChecksumPicture %v\n", picData.FileName)
+			panic("Empty media error")
 		}
-		fmt.Printf("  ISN=%06d %s\n", record.Isn, record.HashFields["PictureName"].String())
+		fmt.Printf("  ISN=%06d %v\n", picData.Index, picData.FileName)
 
 	}
 	return nil
@@ -257,7 +261,7 @@ func (checker *checker) listDuplikats() error {
 		checker.conn.Close()
 		return rerr
 	}
-	readCheck.Limit = 0
+	readCheck.Limit = checker.limit
 	rerr = readCheck.QueryFields("#PL,PL")
 	if rerr != nil {
 		checker.conn.Close()
@@ -269,7 +273,7 @@ func (checker *checker) listDuplikats() error {
 		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
-	fmt.Println("Start checking ...")
+	fmt.Println("Start checking duplicated picture directory entries...")
 	quantityStatistics := make(map[int]int)
 	lenStatistics := make(map[int]int)
 	counter := 0
@@ -294,6 +298,9 @@ func (checker *checker) listDuplikats() error {
 			}
 		}
 		l := len(picData.PictureLocation)
+		if l > checker.maxOccurance {
+			fmt.Printf("%d>100 -> %s ISN=%d\n", l, picData.PictureLocation[0].PictureDirectory, picData.Index)
+		}
 		if len(checkDuplicate) != l {
 			fmt.Println("Duplicates found....", picData.Index)
 			for n, v := range checkDuplicate {
@@ -313,13 +320,16 @@ func (checker *checker) listDuplikats() error {
 	}
 	fmt.Printf("Have analysed %d records\n", counter)
 	fmt.Printf("\nSchema quantity of picture location:\n")
+	fmt.Printf("NrPicture - Quantity - QuantityLen\n")
 	for q, c := range quantityStatistics {
-		fmt.Printf("%3d - %2d\n", q, c)
+		l := lenStatistics[q]
+		fmt.Printf("%10d - %11d - %d\n", q, c, l)
 	}
-	fmt.Printf("\nSchema length of picture location:\n")
+	/*fmt.Printf("\nSchema length of picture location:\n")
+	fmt.Printf("NrPicture - Quantity\n")
 	for q, c := range lenStatistics {
 		fmt.Printf("%3d - %2d\n", q, c)
-	}
+	}*/
 	if checker.deleteDuplikate {
 		return checker.deleteIsns(isnList)
 	}

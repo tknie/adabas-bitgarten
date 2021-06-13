@@ -41,14 +41,17 @@ import (
 var hostname string
 
 type deleter struct {
-	re            []*regexp.Regexp
-	deleteRequest *adabas.DeleteRequest
-	test          bool
-	picFnr        adabas.Fnr
-	found         uint64
-	deleted       uint64
-	transactions  uint64
-	counter       uint64
+	re                    []*regexp.Regexp
+	deleteRequest         *adabas.DeleteRequest
+	readDirectoryRequest  *adabas.ReadRequest
+	storeDirectoryRequest *adabas.StoreRequest
+	connection            *adabas.Connection
+	test                  bool
+	picFnr                adabas.Fnr
+	found                 uint64
+	deleted               uint64
+	transactions          uint64
+	counter               uint64
 }
 
 var timeFormat = "2006-01-02 15:04:05"
@@ -193,6 +196,7 @@ func main() {
 			return
 		}
 		connection.Close()
+		d.connection = connection
 		err = removeQueries(connection, d, uint64(limit))
 		if err != nil {
 			fmt.Println("Error anaylzing douplikats", err)
@@ -205,17 +209,29 @@ func main() {
 }
 
 func removeQuery(record *adabas.Record, x interface{}) error {
-	fn := record.HashFields["PD"].String()
+	v := record.HashFields["PL"].(*adatypes.StructureValue)
+	//fmt.Printf("%d %d\n", v.NrElements(), v.NrValues(1))
+	found := 0
+	fnMap := make(map[string]bool)
 	de := x.(*deleter)
-	found := false
-	for _, re := range de.re {
-		found = re.MatchString(fn)
-		if found {
-			break
+	for _, e := range v.Elements {
+		for _, sv := range e.Values {
+			fn := sv.String()
+			//			fmt.Printf("%s %T -> %s\n", sv.Type().Name(), sv, sv.String())
+			for _, re := range de.re {
+				if re.MatchString(fn) {
+					fnMap[fn] = true
+					found++
+					break
+				} else {
+					fnMap[fn] = false
+				}
+			}
 		}
 	}
-	if found {
-		fmt.Println("Found :", fn, "ISN:", record.Isn)
+	switch {
+	case found == v.NrElements():
+		fmt.Println("Found all, could delete ISN:", record.Isn)
 		if !de.test {
 			err := de.deleteRequest.Delete(record.Isn)
 			if err != nil {
@@ -231,20 +247,63 @@ func removeQuery(record *adabas.Record, x interface{}) error {
 			}
 		}
 		de.found++
-	} else {
+	case found > 0:
+		fmt.Println("Found parts, could delete parts of ISN:", record.Isn)
+		de.filterDirectories(record.Isn, fnMap)
+		// for v, b := range fnMap {
+		// 	fmt.Println(v, b)
+		// }
+	default:
 		//	fmt.Println("Ignore :" + fn)
+
 	}
 	de.counter++
 	return nil
 }
 
+func (de *deleter) filterDirectories(isn adatypes.Isn, fnMap map[string]bool) {
+	result, err := de.readDirectoryRequest.ReadISN(isn)
+	if err != nil {
+		panic("Error reading ISN: " + err.Error())
+	}
+	metadata := result.Data[0].(*store.PictureMetadata)
+	fmt.Println("Read ISN:", metadata.Index)
+
+	pnList := make([]*store.PictureLocation, 0)
+	extra := 0
+	for _, pd := range metadata.PictureLocation {
+		if reduce, ok := fnMap[pd.PictureDirectory]; ok {
+			if reduce {
+				fmt.Println("Reduce", pd.PictureDirectory)
+				extra++
+			} else {
+				fmt.Println("Stay", pd.PictureDirectory)
+				pnList = append(pnList, pd)
+			}
+		} else {
+			fmt.Println("Unknown", pd.PictureDirectory)
+		}
+	}
+	for i := 0; i < extra; i++ {
+		pnList = append(pnList, &store.PictureLocation{})
+	}
+
+	metadata.PictureLocation = pnList
+	if !de.test {
+		fmt.Println("Update ISN:", metadata.Index)
+		err = de.storeDirectoryRequest.UpdateData(metadata)
+		if err != nil {
+			panic("Error storing ISN: " + err.Error())
+		}
+		err = de.storeDirectoryRequest.EndTransaction()
+		if err != nil {
+			panic("Error end transaction of ISN: " + err.Error())
+		}
+	}
+}
+
 func removeQueries(conn *adabas.Connection, de *deleter, limit uint64) error {
 	readCheck, err := conn.CreateFileReadRequest(de.picFnr)
-	if err != nil {
-		conn.Close()
-		return err
-	}
-	de.deleteRequest, err = conn.CreateDeleteRequest(de.picFnr)
 	if err != nil {
 		conn.Close()
 		return err
@@ -255,9 +314,36 @@ func removeQueries(conn *adabas.Connection, de *deleter, limit uint64) error {
 		conn.Close()
 		return err
 	}
+	de.deleteRequest, err = conn.CreateDeleteRequest(de.picFnr)
+	if err != nil {
+		conn.Close()
+		return err
+	}
+	de.readDirectoryRequest, err = conn.CreateMapReadRequest((*store.PictureMetadata)(nil))
+	if err != nil {
+		conn.Close()
+		return err
+	}
+	err = de.readDirectoryRequest.QueryFields("PL")
+	if err != nil {
+		fmt.Printf("Error defining field query: %v\n", err)
+		de.deleteRequest.BackoutTransaction()
+		panic("Read error " + err.Error())
+	}
+	de.storeDirectoryRequest, err = conn.CreateMapStoreRequest((*store.PictureMetadata)(nil))
+	if err != nil {
+		conn.Close()
+		return err
+	}
+	err = de.storeDirectoryRequest.StoreFields("PL")
+	if err != nil {
+		fmt.Printf("Error defining store fields: %v\n", err)
+		de.deleteRequest.BackoutTransaction()
+		panic("Read error " + err.Error())
+	}
 	_, err = readCheck.ReadPhysicalSequenceStream(removeQuery, de)
 	if err != nil {
-		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
+		fmt.Printf("Error reading physical sequence stream: %v\n", err)
 		de.deleteRequest.BackoutTransaction()
 		panic("Read error " + err.Error())
 	}
@@ -320,7 +406,7 @@ func (validater *validater) analyzeDoublikats() (err error) {
 	// 	return nil
 	// }, nil)
 	if err != nil {
-		fmt.Printf("Error checking descriptor quantity for ChecksumPicture: %v\n", err)
+		fmt.Printf("Error histogram descriptor quantity for ChecksumPicture: %v\n", err)
 		panic("Read error " + err.Error())
 	}
 	for cursor.HasNextRecord() {
@@ -334,8 +420,8 @@ func (validater *validater) analyzeDoublikats() (err error) {
 		if record.Quantity > 1 {
 			err = validater.listDuplikats(record.HashFields["ChecksumPicture"].String())
 			if err != nil {
-				fmt.Printf("Error checking duplikats ChecksumPicture: %v\n", err)
-				panic("Duplikat error " + err.Error())
+				fmt.Printf("Error cursor list duplicates: %v\n", err)
+				panic("Duplicate error " + err.Error())
 			}
 		}
 		if validater.limit != 0 && counter >= validater.limit {
@@ -349,7 +435,7 @@ func (validater *validater) analyzeDoublikats() (err error) {
 		validater.emptyPictures, validater.deleteDuplikate, validater.deleteEmpty)
 	fmt.Printf("There are %06d unique records\n", counter)
 	for c, ce := range validater.elementMap {
-		fmt.Println("Elements of ", c, " = ", ce.counter, "occurence")
+		fmt.Println("Elements of ", c, " = ", ce.counter, "occurance")
 	}
 	return nil
 }
@@ -408,7 +494,7 @@ func (validater *validater) listDuplikats(checksum string) (err error) {
 						return err
 					}
 					validater.deleteEmpty++
-				} else if bytes.Compare(data, curPicture.Media) != 0 {
+				} else if bytes.Equal(data, curPicture.Media) {
 					fmt.Println("Record entry differ to first", checksum)
 					validater.failurePictures++
 				} else {
