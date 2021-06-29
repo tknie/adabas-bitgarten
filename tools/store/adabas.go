@@ -158,54 +158,113 @@ func (ps *PictureConnection) Close() {
 	}
 }
 
-func verifyPictureRecord(record *adabas.Record, x interface{}) error {
-	f, ferr := record.SearchValue("PictureName")
-	if ferr != nil {
-		return ferr
+func verifyPictureRecord(cursor *adabas.Cursoring) error {
+	for cursor.HasNextRecord() {
+		data, err := cursor.NextData()
+		if err != nil {
+			return err
+		}
+		pm := data.(*PictureData)
+		//fmt.Printf("ISN=%d. Checksum=%s len=%d\n", pm.Index, pm.ChecksumPicture, len(pm.PictureLocation))
+		for _, p := range pm.PictureLocation {
+			//	fmt.Println(p.PictureHost, p.PictureDirectory)
+			if p.PictureHost == Hostname {
+				pm.compareMedia(p.PictureDirectory)
+			}
+		}
 	}
-	fileName := f.String()
-	v, xerr := record.SearchValue("Media")
-	if xerr != nil {
-		return xerr
-	}
-	vLen := len(v.Bytes())
-	md := createMd5(v.Bytes())
-	v, xerr = record.SearchValue("ChecksumPicture")
-	if xerr != nil {
-		return xerr
-	}
-	smd := strings.Trim(v.String(), " ")
-	fmt.Printf("ISN=%d. name=%s len=%d\n", record.Isn, fileName, vLen)
-	if md != smd {
-		fmt.Printf("MD5 data=<%s> expected=<%s>\n", md, smd)
-		fmt.Println("Record checksum error", record.Isn)
-		return fmt.Errorf("record checksum error")
-	}
+
+	// f, ferr := record.SearchValue("PN")
+	// if ferr != nil {
+	// 	return ferr
+	// }
+	// fileName := f.String()
+	// v, xerr := record.SearchValue("Media")
+	// if xerr != nil {
+	// 	return xerr
+	// }
+	// vLen := len(v.Bytes())
+	// md := createMd5(v.Bytes())
+	// v, xerr = record.SearchValue("ChecksumPicture")
+	// if xerr != nil {
+	// 	return xerr
+	// }
+	// smd := strings.Trim(v.String(), " ")
+	// fmt.Printf("ISN=%d. name=%s len=%d\n", record.Isn, fileName, vLen)
+	// if md != smd {
+	// 	fmt.Printf("MD5 data=<%s> expected=<%s>\n", md, smd)
+	// 	fmt.Println("Record checksum error", record.Isn)
+	// 	return fmt.Errorf("record checksum error")
+	// }
 	return nil
 }
 
 // VerifyPicture verify pictures
-func VerifyPicture(mapName, ref string) error {
-	connection, cerr := adabas.NewConnection("acj;map;config=[" + ref + "]")
-	if cerr != nil {
-		return cerr
+func VerifyPicture(target string, file adabas.Fnr) error {
+	connection, err := adabas.NewConnection(fmt.Sprintf("acj;inmap=%s,%d", target, file))
+	if err != nil {
+		fmt.Println("Adabas connection error", err)
+		panic("Adabas communication error in verify")
 	}
 	defer connection.Close()
-	request, rerr := connection.CreateMapReadRequest(mapName)
+	request, rerr := connection.CreateMapReadRequest((*PictureData)(nil))
 	if rerr != nil {
-		fmt.Println("Error create request", rerr)
+		fmt.Println("Error creating request", rerr)
 		return rerr
 	}
-	err := request.QueryFields("Media,ChecksumPicture,PictureName")
+	err = request.QueryFields("DP,CP,PL")
 	if err != nil {
+		fmt.Println("Error query fields", err)
 		return err
 	}
 	request.Limit = 0
 	request.Multifetch = 1
-	result, rErr := request.ReadPhysicalSequenceStream(verifyPictureRecord, nil)
+
+	cursor, rErr := request.ReadPhysicalWithCursoring()
+	// request.ReadPhysicalSequenceStream(verifyPictureRecord, nil)
 	if rErr != nil {
+		fmt.Println("Error read physical cursor start", rErr)
 		return rErr
 	}
-	fmt.Println(result)
+	return verifyPictureRecord(cursor)
+}
+
+func (pic *PictureData) compareMedia(loadFile string) (err error) {
+	// fmt.Println("Compare file", loadFile, "with data in", pic.ChecksumPicture)
+	f, err := os.Open(loadFile)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if fi.Size() > int64(len(pic.Media)) {
+		return fmt.Errorf("file tooo big %d>%d", fi.Size(), len(pic.Media))
+	}
+	fileData := make([]byte, fi.Size())
+	var n int
+	n, err = f.Read(fileData)
+	adatypes.Central.Log.Debugf("Number of bytes read: %d/%d -> %v\n", n, len(pic.Media), err)
+	if err != nil {
+		return err
+	}
+	md := createMd5(fileData)
+	if strings.Trim(pic.ChecksumPicture, " ") != md {
+		fmt.Printf("Checksum mismatch <%s> <%s> of %s\n", md, pic.ChecksumPicture, loadFile)
+	}
+	if len(pic.Media) != len(fileData) {
+		fmt.Printf("Different media length %d != %d of %s\n", len(pic.Media), len(fileData), loadFile)
+	}
+	for i := 0; i < len(pic.Media); i++ {
+		if pic.Media[i] != fileData[i] {
+			fmt.Printf("Error difference offset at %d\n", i)
+			fmt.Println(adatypes.FormatByteBuffer("Database at offset", pic.Media[i-10:i+100]))
+			fmt.Println(adatypes.FormatByteBuffer("File     at offset", fileData[i-10:i+100]))
+			break
+		}
+	}
 	return nil
 }

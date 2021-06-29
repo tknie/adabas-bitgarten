@@ -260,7 +260,7 @@ func main() {
 	}
 	if verify {
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
-		err = store.VerifyPicture("PictureData", fmt.Sprintf("%s,%d", dbidParameter, mapFnrParameter))
+		err = store.VerifyPicture(dbidParameter, adabas.Fnr(mapFnrParameter))
 		if err != nil {
 			fmt.Printf("%s Error during verify of database picture content: %v\n", time.Now().Format(timeFormat), err)
 			return

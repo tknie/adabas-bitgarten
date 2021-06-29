@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
 	"github.com/SoftwareAG/adabas-go-api/adatypes"
@@ -16,6 +17,8 @@ type DatabaseReference struct {
 	PictureFile adabas.Fnr
 	AlbumFile   adabas.Fnr
 }
+
+var mapCurrentPictureChecksum = &sync.Map{}
 
 // InitStorePictureBinary init store picture connection
 func InitStorePictureBinary(shortenName bool, dbReference *DatabaseReference, connection *adabas.Connection) (ps *PictureConnection, err error) {
@@ -36,7 +39,7 @@ func InitStorePictureBinary(shortenName bool, dbReference *DatabaseReference, co
 		ps.connection.Close()
 		return nil, err
 	}
-	err = ps.storeData.StoreFields("M5,DP")
+	err = ps.storeData.StoreFields("DP")
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +48,7 @@ func InitStorePictureBinary(shortenName bool, dbReference *DatabaseReference, co
 		ps.connection.Close()
 		return nil, err
 	}
-	err = ps.storeThumb.StoreFields("M5,CP,DT")
+	err = ps.storeThumb.StoreFields("CP,DT")
 	// "Md5,ChecksumPicture,ChecksumThumbnail,Thumbnail")
 	if err != nil {
 		return nil, err
@@ -138,7 +141,7 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string) error {
 	}
 	pictureLocation := createPictureLocation(pictureName, directoryName)
 	p := PictureBinary{FileName: fileName,
-		MetaData: &PictureMetadata{Md5: pictureKey}, MaxBlobSize: ps.MaxBlobSize}
+		MetaData: &PictureMetadata{}, MaxBlobSize: ps.MaxBlobSize}
 	p.MetaData.PictureLocation = append(p.MetaData.PictureLocation, pictureLocation)
 	err = p.LoadFile()
 	if err != nil {
@@ -146,28 +149,43 @@ func (ps *PictureConnection) LoadPicture(insert bool, fileName string) error {
 		return err
 	}
 
-	mediaAvailable, merr := ps.pictureMediaAvailable(p.Data.ChecksumPicture)
-	if merr != nil {
-		adatypes.Central.Log.Debugf("Availability data check error %v", merr)
-		return merr
-	}
-	if !mediaAvailable {
-		if ps.Verbose {
-			info := "Loading"
-			if !insert {
-				info = "Updating"
+	for {
+		mediaAvailable, merr := ps.pictureMediaAvailable(p.Data.ChecksumPicture)
+		if merr != nil {
+			adatypes.Central.Log.Debugf("Availability data check error %v", merr)
+			return merr
+		}
+		if !mediaAvailable {
+			picCheckLockNew := &sync.Mutex{}
+			picCheckLockNew.Lock()
+			picCheckLock, loaded := mapCurrentPictureChecksum.LoadOrStore(p.MetaData.ChecksumPicture, picCheckLockNew)
+			if loaded {
+				fmt.Println("Already loaded Checksum ", p.MetaData.ChecksumPicture, ", waiting ...")
+				picCheckLock.(*sync.Mutex).Lock()
+				fmt.Println("Returned loaded Checksum ", p.MetaData.ChecksumPicture, ", waiting ...")
+				mapCurrentPictureChecksum.Store(p.MetaData.ChecksumPicture, picCheckLock)
+				continue
 			}
-			fmt.Printf("%s picture ... %s\r", info, fileName)
+			if ps.Verbose {
+				info := "Loading"
+				if !insert {
+					info = "Updating"
+				}
+				fmt.Printf("%s picture ... %s\r", info, fileName)
 
+			}
+			p.storeRecord(insert, ps)
+			picCheckLock, _ = mapCurrentPictureChecksum.LoadAndDelete(p.MetaData.ChecksumPicture)
+			picCheckLock.(*sync.Mutex).Unlock()
+
+		} else {
+			if ps.Verbose {
+				fmt.Printf("Skipping picture ... %s [%s]\r", fileName, p.Data.ChecksumPicture)
+			}
+			p.checkAndAddFile(ps, fileName, directoryName)
 		}
-		p.storeRecord(insert, ps)
-	} else {
-		if ps.Verbose {
-			fmt.Printf("Skipping picture ... %s [%s]\r", fileName, p.Data.ChecksumPicture)
-		}
-		p.checkAndAddFile(ps, fileName, directoryName)
+		return nil
 	}
-	return nil
 }
 
 // DeleteMd5 delete picture key

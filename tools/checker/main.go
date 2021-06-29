@@ -167,7 +167,7 @@ func main() {
 	}
 	if verify {
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
-		err := store.VerifyPicture("PictureData", fmt.Sprintf("%s,%d", dbidParameter, picFnrParameter))
+		err := store.VerifyPicture(dbidParameter, adabas.Fnr(picFnrParameter))
 		if err != nil {
 			fmt.Printf("%s Error during verify of database picture content: %v\n", time.Now().Format(timeFormat), err)
 			return
@@ -246,10 +246,10 @@ func (checker *checker) validateData(checksum string) error {
 		adatypes.Central.Log.Debugf("Length %d", len(picData.Media))
 		fmt.Println("Length", len(picData.Media))
 		if len(picData.Media) == 0 {
-			fmt.Printf("Empty data for ChecksumPicture %v\n", picData.FileName)
+			fmt.Printf("Empty data for ChecksumPicture %v\n", picData.PictureLocation)
 			panic("Empty media error")
 		}
-		fmt.Printf("  ISN=%06d %v\n", picData.Index, picData.FileName)
+		fmt.Printf("  ISN=%06d %v\n", picData.Index, picData.PictureLocation)
 
 	}
 	return nil

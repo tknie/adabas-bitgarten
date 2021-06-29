@@ -48,13 +48,13 @@ type PictureBinary struct {
 // PictureMetadata definition
 type PictureMetadata struct {
 	Index             uint64             `adabas:"#isn" json:"-"`
-	Md5               string             `adabas:":key:M5"`
 	Title             string             `adabas:"::TI"`
 	Fill              string             `adabas:"::FI"`
 	MIMEType          string             `adabas:"::TY"`
 	Option            string             `adabas:"::OP"`
 	Width             uint32             `adabas:"::HE"`
 	Height            uint32             `adabas:"::WI"`
+	ChecksumPicture   string             `adabas:":key:CP"`
 	NrPictureLocation int                `adabas:"::#PL"`
 	PictureLocation   []*PictureLocation `adabas:"::PL"`
 	ExifModel         string             `adabas:"::MO"`
@@ -75,12 +75,11 @@ type PictureLocation struct {
 
 // PictureData definition
 type PictureData struct {
-	Index           uint64   `adabas:":isn" json:"-"`
-	Md5             string   `adabas:":key:M5"`
-	ChecksumPicture string   `adabas:"::CP"`
-	FileName        []string `adabas:"::PN" xml:"-" json:"-"`
-	Media           []byte   `adabas:"::DP" xml:"-" json:"-"`
-	Thumbnail       []byte   `adabas:"::DT" xml:"-" json:"-"`
+	Index           uint64             `adabas:":isn" json:"-"`
+	ChecksumPicture string             `adabas:":key:CP"`
+	PictureLocation []*PictureLocation `adabas:"::PL"`
+	Media           []byte             `adabas:"::DP" xml:"-" json:"-"`
+	Thumbnail       []byte             `adabas:"::DT" xml:"-" json:"-"`
 	//	ChecksumThumbnail string `adabas:":key:CT"`
 }
 
@@ -110,7 +109,7 @@ func (pic *PictureBinary) LoadFile() error {
 		return err
 	}
 	pic.Data.ChecksumPicture = createMd5(pic.Data.Media)
-	// pic.MetaData.ChecksumPicture = pic.Data.ChecksumPicture
+	pic.MetaData.ChecksumPicture = pic.Data.ChecksumPicture
 	adatypes.Central.Log.Debugf("PictureBinary checksum %s size=%d len=%d", pic.Data.ChecksumPicture, fi.Size(), len(pic.Data.Media))
 
 	return nil
@@ -295,6 +294,10 @@ func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err e
 	}
 	adatypes.Central.Log.Debugf("Done set value to Picture, searching ...")
 
+	if pic.MetaData.ChecksumPicture == "" {
+		panic(fmt.Sprintf("Checksum picture empty: %v", pic.MetaData.PictureLocation))
+	}
+	fmt.Printf("Store data %s %v\n", pic.MetaData.ChecksumPicture, pic.MetaData.PictureLocation)
 	if insert {
 		//fmt.Println("Store record metadata ....", p.MetaData.Md5)
 		err = ps.store.StoreData(pic.MetaData)
@@ -302,12 +305,12 @@ func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err e
 		// fmt.Println("Update record ....", p.MetaData.Md5, "with ISN", p.MetaData.Index)
 		err = ps.store.UpdateData(pic.MetaData)
 	}
-	// fmt.Println("Stored metadata into ISN=", p.MetaData.Index)
 	if err != nil {
-		fmt.Printf("Error storing record metadata: %v %#v", err, pic.MetaData)
+		fmt.Printf("Error storing record metadata: %v (%s)", err, pic.MetaData.ChecksumPicture)
 		return err
 	}
-	pic.Data.Md5 = pic.MetaData.Md5
+	fmt.Printf("Stored metadata %s into ISN=%d\n", pic.MetaData.ChecksumPicture, pic.MetaData.Index)
+	pic.Data.ChecksumPicture = pic.MetaData.ChecksumPicture
 	pic.Data.Index = pic.MetaData.Index
 	if !ps.ChecksumRun {
 		// ok, err = ps.checkPicture(pictureKey)
@@ -331,7 +334,7 @@ func (pic *PictureBinary) storeRecord(insert bool, ps *PictureConnection) (err e
 		fmt.Printf("Updating thumbnail request error %d: %v\n", pic.Data.Index, err)
 		return err
 	}
-	adatypes.Central.Log.Debugf("Updated record into ISN=%d MD5=%s", pic.MetaData.Index, pic.Data.Md5)
+	adatypes.Central.Log.Debugf("Updated record into ISN=%d ChecksumPicture=%s", pic.MetaData.Index, pic.Data.ChecksumPicture)
 	err = ps.store.EndTransaction()
 	if err != nil {
 		panic("End of transaction error: " + err.Error())

@@ -1,0 +1,46 @@
+version: '3'
+
+services:
+   adabaspic:
+     image: ${DOCKERREP}/softwareag/${ADAIMAGE}:7.1.0.0.${BUILD}
+     volumes:
+#     - adabasdataee:/data:z
+      - ${ADABAS_BACKUP}:/backup/BCK001
+      - licenses:/opt/softwareag/common/conf:z
+     stop_grace_period: 20m
+     user: ${CURRENT_UID}
+     environment:
+      - ACCEPT_EULA=Y
+      - ADADBID=200
+      - ADA_PARA_SSLPORTNUMBER=60002
+      - ADA_RESTORE_BCK=/backup/BCK001 4-6
+      - ADA_DB_CREATION=name=ABC assosize=(100M,100M) assoblock=(4k,16k) datasize=100M datablock=16k worksize=200M
+      - ADA_PARA_OPTIONS=(TRUNCATION,OPEN_REQUIRED,AUTO_EXPAND)
+      - ADA_PARA_TCPATB=509715200
+#      - TRACE_ENABLED=YES
+     container_name: adabaspic
+     ports:
+      - 64200:60001
+      - 61001:60002
+#     - 61090:8130
+      - 61091:8131
+     sysctls:
+      - kernel.shmmax=1073741824
+
+
+volumes:
+   adabasdataee:
+          driver_opts:
+            type: none
+            device: ${ADABAS_DATA_EE}
+            o: bind
+   adabasbackup:
+      driver_opts:
+        type: none
+        device: ${ADABAS_BACKUP}
+        o: bind
+   licenses:
+      driver_opts:
+        type: none
+        device: ${LICENSE_DATA}
+        o: bind

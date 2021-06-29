@@ -4,7 +4,7 @@
 ;*
 ;*************************************************************************/
 ;
-   1    , M5,   0,  A, NU,DE,UQ  ; Md5
+;   1    , M5,   0,  A, NU,DE,UQ  ; Md5
    1    , CG                     ; Checksum
 ;    2   , CT,  40,  A, DE,NU     ; ChecksumThumbnail
     2   , CP,  40,  A, DE,NU,UQ  ; ChecksumPicture

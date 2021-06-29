@@ -171,7 +171,7 @@ func receiveInterface(data interface{}, x interface{}) error {
 
 func compareMedia(connection *adabas.Connection, r *reader, loadFile, hash string) (err error) {
 	fmt.Println("Compare file", loadFile, "with data in", hash)
-	p := &store.PictureBinary{MetaData: &store.PictureMetadata{Md5: hash}, FileName: loadFile}
+	p := &store.PictureBinary{MetaData: &store.PictureMetadata{}, FileName: loadFile}
 	err = p.LoadFile()
 	if err != nil {
 		return
@@ -198,7 +198,7 @@ func compareMedia(connection *adabas.Connection, r *reader, loadFile, hash strin
 
 func loadMedia(r *reader, loadFile, hash string) (*store.PictureBinary, error) {
 	fmt.Println("Load file", loadFile, "into", hash)
-	p := &store.PictureBinary{MetaData: &store.PictureMetadata{Md5: hash}, FileName: loadFile}
+	p := &store.PictureBinary{MetaData: &store.PictureMetadata{}, FileName: loadFile}
 	p.LoadFile()
 
 	connection, err := adabas.NewConnection("acj;map;config=[" + r.repository + "]")
