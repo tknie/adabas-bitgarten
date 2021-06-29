@@ -280,12 +280,20 @@ func main() {
 		wg.Wait()
 	}
 	if verify {
+		output := func() {
+			fmt.Printf("Verified=%d NotFound=%d DiffData=%d DiffSize=%d OtherHost=%d\n",
+				store.Statistics.Verified, store.Statistics.NotFound, store.Statistics.DiffFound,
+				store.Statistics.SizeDiffFound, store.Statistics.OtherHost)
+		}
+		stop := schedule(output, 5*time.Second)
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
 		err := store.VerifyPicture(dbidParameter, adabas.Fnr(picFnrParameter))
 		if err != nil {
 			fmt.Printf("%s Error during verify of database picture content: %v\n", time.Now().Format(timeFormat), err)
 			return
 		}
+		stop <- true
+		output()
 		fmt.Printf("%s finished verify of database picture content\n", time.Now().Format(timeFormat))
 	}
 

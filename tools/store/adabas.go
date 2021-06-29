@@ -52,17 +52,22 @@ type PictureConnection struct {
 }
 
 type PictureStatistic struct {
-	Found      uint64
-	Empty      uint64
-	Loaded     uint64
-	Added      uint64
-	Checked    uint64
-	ToBig      uint64
-	NrErrors   uint64
-	Duplicated uint64
-	Errors     map[string]uint64
-	NrDeleted  uint64
-	Ignored    uint64
+	Found         uint64
+	Empty         uint64
+	Loaded        uint64
+	Added         uint64
+	Checked       uint64
+	ToBig         uint64
+	NrErrors      uint64
+	Duplicated    uint64
+	Errors        map[string]uint64
+	NrDeleted     uint64
+	Ignored       uint64
+	Verified      uint64
+	SizeDiffFound uint64
+	DiffFound     uint64
+	NotFound      uint64
+	OtherHost     uint64
 }
 
 var Statistics = &PictureStatistic{Errors: make(map[string]uint64)}
@@ -170,32 +175,11 @@ func verifyPictureRecord(cursor *adabas.Cursoring) error {
 			//	fmt.Println(p.PictureHost, p.PictureDirectory)
 			if p.PictureHost == Hostname {
 				pm.compareMedia(p.PictureDirectory)
+			} else {
+				Statistics.OtherHost++
 			}
 		}
 	}
-
-	// f, ferr := record.SearchValue("PN")
-	// if ferr != nil {
-	// 	return ferr
-	// }
-	// fileName := f.String()
-	// v, xerr := record.SearchValue("Media")
-	// if xerr != nil {
-	// 	return xerr
-	// }
-	// vLen := len(v.Bytes())
-	// md := createMd5(v.Bytes())
-	// v, xerr = record.SearchValue("ChecksumPicture")
-	// if xerr != nil {
-	// 	return xerr
-	// }
-	// smd := strings.Trim(v.String(), " ")
-	// fmt.Printf("ISN=%d. name=%s len=%d\n", record.Isn, fileName, vLen)
-	// if md != smd {
-	// 	fmt.Printf("MD5 data=<%s> expected=<%s>\n", md, smd)
-	// 	fmt.Println("Record checksum error", record.Isn)
-	// 	return fmt.Errorf("record checksum error")
-	// }
 	return nil
 }
 
@@ -234,6 +218,7 @@ func (pic *PictureData) compareMedia(loadFile string) (err error) {
 	f, err := os.Open(loadFile)
 	if err != nil {
 		fmt.Println(err)
+		Statistics.NotFound++
 		return err
 	}
 	defer f.Close()
@@ -257,14 +242,18 @@ func (pic *PictureData) compareMedia(loadFile string) (err error) {
 	}
 	if len(pic.Media) != len(fileData) {
 		fmt.Printf("Different media length %d != %d of %s\n", len(pic.Media), len(fileData), loadFile)
+		Statistics.SizeDiffFound++
+		return fmt.Errorf("size difference found")
 	}
 	for i := 0; i < len(pic.Media); i++ {
 		if pic.Media[i] != fileData[i] {
 			fmt.Printf("Error difference offset at %d\n", i)
 			fmt.Println(adatypes.FormatByteBuffer("Database at offset", pic.Media[i-10:i+100]))
 			fmt.Println(adatypes.FormatByteBuffer("File     at offset", fileData[i-10:i+100]))
-			break
+			Statistics.DiffFound++
+			return fmt.Errorf("data difference found")
 		}
 	}
+	Statistics.Verified++
 	return nil
 }
