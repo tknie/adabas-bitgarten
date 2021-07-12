@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SoftwareAG/adabas-go-api/adabas"
@@ -163,28 +164,62 @@ func (ps *PictureConnection) Close() {
 	}
 }
 
-func verifyPictureRecord(cursor *adabas.Cursoring) error {
+func verifyPictureRecord(cursor *adabas.Cursoring, nrThreads int) error {
+	pictureDataChan := make(chan *PictureData, nrThreads)
+	stopThread := make(chan bool, nrThreads)
+	var wg sync.WaitGroup
+	wg.Add(nrThreads)
+	for i := 0; i < nrThreads; i++ {
+		go VerifyPictureData(&wg, stopThread, pictureDataChan)
+	}
+	fmt.Printf("%s Start reading records ... \n", time.Now().Format(timeFormat))
 	for cursor.HasNextRecord() {
 		data, err := cursor.NextData()
 		if err != nil {
 			return err
 		}
 		pm := data.(*PictureData)
+		pictureDataChan <- pm
 		//fmt.Printf("ISN=%d. Checksum=%s len=%d\n", pm.Index, pm.ChecksumPicture, len(pm.PictureLocation))
-		for _, p := range pm.PictureLocation {
-			//	fmt.Println(p.PictureHost, p.PictureDirectory)
-			if p.PictureHost == Hostname {
-				pm.compareMedia(p.PictureDirectory)
-			} else {
-				Statistics.OtherHost++
-			}
-		}
+		// for _, p := range pm.PictureLocation {
+		// 	//	fmt.Println(p.PictureHost, p.PictureDirectory)
+		// 	if p.PictureHost == Hostname {
+		// 		pm.compareMedia(p.PictureDirectory)
+		// 	} else {
+		// 		Statistics.OtherHost++
+		// 	}
+		// }
 	}
+	fmt.Printf("%s Stop all threads verifying read records ...\n", time.Now().Format(timeFormat))
+	for i := 0; i < nrThreads; i++ {
+		stopThread <- true
+	}
+	wg.Wait()
+	fmt.Printf("%s Got all threads\n", time.Now().Format(timeFormat))
 	return nil
 }
 
+func VerifyPictureData(wg *sync.WaitGroup, stopThread chan bool, pictureDataChan chan *PictureData) {
+	for {
+		select {
+		case <-stopThread:
+			wg.Done()
+			return
+		case pm := <-pictureDataChan:
+			for _, p := range pm.PictureLocation {
+				//	fmt.Println(p.PictureHost, p.PictureDirectory)
+				if p.PictureHost == Hostname {
+					pm.compareMedia(p.PictureDirectory)
+				} else {
+					Statistics.OtherHost++
+				}
+			}
+		}
+	}
+}
+
 // VerifyPicture verify pictures
-func VerifyPicture(target string, file adabas.Fnr) error {
+func VerifyPicture(target string, file adabas.Fnr, nrThreads int) error {
 	connection, err := adabas.NewConnection(fmt.Sprintf("acj;inmap=%s,%d", target, file))
 	if err != nil {
 		fmt.Println("Adabas connection error", err)
@@ -204,20 +239,22 @@ func VerifyPicture(target string, file adabas.Fnr) error {
 	request.Limit = 0
 	request.Multifetch = 1
 
-	cursor, rErr := request.ReadPhysicalWithCursoring()
+	// cursor, rErr := request.ReadPhysicalWithCursoring()
+	fmt.Println("Read all pictures from host", Hostname)
+	cursor, rErr := request.ReadLogicalWithCursoring("PH=" + Hostname)
 	// request.ReadPhysicalSequenceStream(verifyPictureRecord, nil)
 	if rErr != nil {
 		fmt.Println("Error read physical cursor start", rErr)
 		return rErr
 	}
-	return verifyPictureRecord(cursor)
+	return verifyPictureRecord(cursor, nrThreads)
 }
 
 func (pic *PictureData) compareMedia(loadFile string) (err error) {
 	// fmt.Println("Compare file", loadFile, "with data in", pic.ChecksumPicture)
 	f, err := os.Open(loadFile)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Error loading file [%d]: %v\n", pic.Index, loadFile)
 		Statistics.NotFound++
 		return err
 	}
@@ -234,20 +271,21 @@ func (pic *PictureData) compareMedia(loadFile string) (err error) {
 	n, err = f.Read(fileData)
 	adatypes.Central.Log.Debugf("Number of bytes read: %d/%d -> %v\n", n, len(pic.Media), err)
 	if err != nil {
+		fmt.Printf("Error reading file: %v", err)
 		return err
 	}
 	md := createMd5(fileData)
 	if strings.Trim(pic.ChecksumPicture, " ") != md {
-		fmt.Printf("Checksum mismatch <%s> <%s> of %s\n", md, pic.ChecksumPicture, loadFile)
+		fmt.Printf("Checksum mismatch <%s> <%s> of %s[%d]\n", md, pic.ChecksumPicture, loadFile, pic.Index)
 	}
 	if len(pic.Media) != len(fileData) {
-		fmt.Printf("Different media length %d != %d of %s\n", len(pic.Media), len(fileData), loadFile)
+		fmt.Printf("Different media length %d != %d of %s[%d]\n", len(pic.Media), len(fileData), loadFile, pic.Index)
 		Statistics.SizeDiffFound++
 		return fmt.Errorf("size difference found")
 	}
 	for i := 0; i < len(pic.Media); i++ {
 		if pic.Media[i] != fileData[i] {
-			fmt.Printf("Error difference offset at %d\n", i)
+			fmt.Printf("Error difference offset at %d[%d]\n", i, pic.Index)
 			fmt.Println(adatypes.FormatByteBuffer("Database at offset", pic.Media[i-10:i+100]))
 			fmt.Println(adatypes.FormatByteBuffer("File     at offset", fileData[i-10:i+100]))
 			Statistics.DiffFound++

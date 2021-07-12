@@ -281,13 +281,13 @@ func main() {
 	}
 	if verify {
 		output := func() {
-			fmt.Printf("Verified=%d NotFound=%d DiffData=%d DiffSize=%d OtherHost=%d\n",
+			fmt.Printf("%s Verified=%d NotFound=%d DiffData=%d DiffSize=%d OtherHost=%d\n", time.Now().Format(timeFormat),
 				store.Statistics.Verified, store.Statistics.NotFound, store.Statistics.DiffFound,
 				store.Statistics.SizeDiffFound, store.Statistics.OtherHost)
 		}
-		stop := schedule(output, 5*time.Second)
+		stop := schedule(output, 30*time.Second)
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
-		err := store.VerifyPicture(dbidParameter, adabas.Fnr(picFnrParameter))
+		err := store.VerifyPicture(dbidParameter, adabas.Fnr(picFnrParameter), nrThreads)
 		if err != nil {
 			fmt.Printf("%s Error during verify of database picture content: %v\n", time.Now().Format(timeFormat), err)
 			return
