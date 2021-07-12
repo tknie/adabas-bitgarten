@@ -69,6 +69,7 @@ type PictureStatistic struct {
 	DiffFound     uint64
 	NotFound      uint64
 	OtherHost     uint64
+	HostsFound    sync.Map
 }
 
 var Statistics = &PictureStatistic{Errors: make(map[string]uint64)}
@@ -211,6 +212,7 @@ func VerifyPictureData(wg *sync.WaitGroup, stopThread chan bool, pictureDataChan
 				if p.PictureHost == Hostname {
 					pm.compareMedia(p.PictureDirectory)
 				} else {
+					Statistics.HostsFound.Store(p.PictureHost, true)
 					Statistics.OtherHost++
 				}
 			}
@@ -240,7 +242,7 @@ func VerifyPicture(target string, file adabas.Fnr, nrThreads int) error {
 	request.Multifetch = 1
 
 	// cursor, rErr := request.ReadPhysicalWithCursoring()
-	fmt.Println("Read all pictures from host", Hostname)
+	fmt.Println(time.Now().Format(timeFormat), "Read all pictures from host", Hostname)
 	cursor, rErr := request.ReadLogicalWithCursoring("PH=" + Hostname)
 	// request.ReadPhysicalSequenceStream(verifyPictureRecord, nil)
 	if rErr != nil {

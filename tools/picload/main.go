@@ -133,6 +133,7 @@ func main() {
 	var checksumRun bool
 	var shortenName bool
 	var query string
+	var interval int
 	var nrThreads int
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
@@ -148,6 +149,7 @@ func main() {
 	flag.BoolVar(&verbose, "v", false, "Verbose output")
 	flag.BoolVar(&update, "u", false, "Update data")
 	flag.BoolVar(&shortenName, "s", false, "Shorten directory name")
+	flag.IntVar(&interval, "I", 60, "Interval for the statistics output")
 	flag.BoolVar(&checksumRun, "c", false, "Checksum run, no data load")
 	flag.IntVar(&deleteIsn, "r", -1, "Delete ISN image")
 	flag.IntVar(&binarySize, "b", 1550000000, "Maximum binary blob size")
@@ -224,7 +226,7 @@ func main() {
 		if verbose {
 			fmt.Printf("%s Loading path %s\n", time.Now().Format(timeFormat), pictureDirectory)
 		}
-		stop := schedule(output, 5*time.Second)
+		stop := schedule(output, 60*time.Second)
 		pathChan := make(chan string, nrThreads)
 		stopThread := make(chan bool, nrThreads)
 		wg.Add(nrThreads)
@@ -284,8 +286,14 @@ func main() {
 			fmt.Printf("%s Verified=%d NotFound=%d DiffData=%d DiffSize=%d OtherHost=%d\n", time.Now().Format(timeFormat),
 				store.Statistics.Verified, store.Statistics.NotFound, store.Statistics.DiffFound,
 				store.Statistics.SizeDiffFound, store.Statistics.OtherHost)
+			list := make([]string, 0)
+			store.Statistics.HostsFound.Range(func(key, value interface{}) bool {
+				list = append(list, key.(string))
+				return true
+			})
+			fmt.Printf("%s hosts -> %v\n", time.Now().Format(timeFormat), list)
 		}
-		stop := schedule(output, 30*time.Second)
+		stop := schedule(output, time.Duration(interval)*time.Second)
 		fmt.Printf("%s Start verifying database picture content\n", time.Now().Format(timeFormat))
 		err := store.VerifyPicture(dbidParameter, adabas.Fnr(picFnrParameter), nrThreads)
 		if err != nil {
