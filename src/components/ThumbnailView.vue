@@ -1,134 +1,79 @@
 <template>
-  <div class="editView">
+  <div class='thumbnailView'>
     <div>
       <div>
-        <b-alert show variant="success">
-          <h5 class="alert-heading">Editing ...</h5>
+        <b-alert show variant='success'>
+          <h5 class='alert-heading'>Thumbnails view ...</h5>
         </b-alert>
       </div>
       <div>
-        <b-button pill variant="outline-primary" @click="refreshAlbums"
+        <b-button pill variant='outline-primary' @click='refreshAlbums'
           >Refresh</b-button
         >
         <b-form-select
-          v-model="selectedItem"
-          @change="fetchAlbumData(selectedItem)"
+          v-model='selectedItem'
+          @change='fetchAlbumData(selectedItem)'
         >
-          <option v-for="item in items" :key="item.Title" :value="item.ISN">{{
-            item.Title
-          }}</option>
+          <option
+            v-for='(item, index) in items'
+            :key='item.Title'
+            :value='index + 1'
+          >
+            {{ index + 1 + '. ' + item.Title + ' - ' + item.Date }}
+          </option>
         </b-form-select>
       </div>
-      <div>
-        <CreateAlbum />
-        <!--b-button
-          pill
-          v-b-toggle.collapse-1
-          variant="outline-primary"
-          @show="loadPictureBase()"
-          >New Album</b-button
-        >
-        <b-collapse id="collapse-1" class="mt-2">
-          <b-card>
-            <p class="card-text">Define basic parameters for new album:</p>
-            <div>
-              <b-form @submit="onSubmit" inline>
-                <b-form-group
-                  id="inline-form-input-name"
-                  v-model="Album.Title"
-                  label="Title"
-                  label-for="input-1"
-                  placeholder="New Album name"
-                >
-                  <b-form-input
-                    id="input-1"
-                    v-model="form.email"
-                    required
-                    placeholder="Enter Album name"
-                  ></b-form-input>
-                </b-form-group>
-                <b-form-select
-                  v-model="selectedPicBaseItem"
-                  @change="fetchPictureBase()"
-                  label="Picture base"
-                >
-                  <option v-for="p in pictures" :key="p" :value="p">{{
-                    p
-                  }}</option>
-                </b-form-select>
-
-                <b-button variant="primary" type="submit">Save</b-button>
-              </b-form>
-            </div>
-          </b-card>
-        </b-collapse-->
-      </div>
+      <div></div>
     </div>
     <div>
-      selectedItem:
-      <strong>{{ selectedItem }}</strong>
-    </div>
-    <div>
-      <b-form @submit="onUpdate">
-        <div>
-          <b-form-input type="text" v-model="Album.Title"></b-form-input>
-          <div>{{ new Date(Album.Generated * 1000) }}</div>
-        </div>
-        <b-button pill variant="outline-primary" type="submit">Update</b-button>
-        <b-button pill variant="outline-primary" @click="deleteRecord"
-          >Delete</b-button
+      <b-alert show variant='success'>{{ selectedTitle() }}</b-alert>
+      <b-container fluid class='bv-example-row mb-3'>
+        <b-modal centered size='xl' id='modal-image' title='Image' ok-only
+          ><b-img fluid :src='currentPic'
+        /></b-modal>
+        <b-modal centered size='xl' id='modal-video' title='Video' ok-only
+          ><video controls id='tribune' slot='img' class='fillHeight'>
+            <source :src='currentPic' type='video/mp4' />
+            Your browser does not support the video tag.
+          </video></b-modal
         >
-        <b-table
-          ref="picTable"
-          striped
-          flip-list-move
-          hover
-          :items="Album.Pictures"
-          :fields="fields"
-        >
-          <template v-slot:cell(index)="data">{{ data.index + 1 }}</template>
-          <template v-slot:cell(order)="data">
-            <b-form-input
-              type="number"
-              @change="changeOrder(data.index + 1, $event)"
-              :value="data.index + 1"
-            ></b-form-input>
-            <b-form-input
-              type="text"
-              v-model="Album.Pictures[data.index].Md5"
-            ></b-form-input>
-            <b-form-input
-              type="text"
-              v-model="Album.Pictures[data.index].MIMEType"
-            ></b-form-input>
-            <b-form-input
-              type="text"
-              v-model="Album.Pictures[data.index].Fill"
-            ></b-form-input>
-          </template>
-          <template v-slot:cell(Description)="data">
-            <b-form-input
-              type="text"
-              v-model="Album.Pictures[data.index].Description"
-            ></b-form-input>
-          </template>
-          <template v-slot:cell(Md5)="data">
-            <img
-              :src="Thumbnail(data.item.Md5)"
-              class="rounded"
-              :alt="'Error loading'"
-            />
-          </template>
-        </b-table>
-        <b-button pill variant="outline-primary" @click="addPicture"
-          >Add Picture</b-button
-        >
-      </b-form>
+        <b-row align-h='around'>
+          <b-col
+            align-v='center'
+            style='width: 10%; display: inline-block'
+            v-for='(p, index) in Album.Pictures'
+            v-bind:key='p.Md5'
+          >
+            <b-button
+              variant='outline-primary'
+              v-if='p.MIMEType.startsWith("image")'
+              v-b-modal.modal-image
+              v-on:click='loadImage(p.Md5)'
+              >{{ index + 1 }}
+              <b-img
+                class='rounded'
+                thumbnail
+                fluid
+                :src='Thumbnail(p.Md5)'
+                alt='Error loading' /></b-button
+            ><b-button
+              variant='outline-primary'
+              v-else
+              v-b-modal.modal-video
+              v-on:click='loadImage(p.Md5)'
+              >{{ index + 1 }} Video Movie</b-button
+            >
+            <!--video v-else controls id='tribune' slot='img' class='fillHeight'>
+              <source :src='p.pic' type='video/mp4' />
+              Your browser does not support the video tag.
+            </video-->
+            <div class='w-100' v-if='(index + 1) % 5 === 0' /> </b-col></b-row
+      ></b-container>
     </div>
   </div>
 </template>
 
-<script lang="ts">
+<script lang='ts'>
 import { Component, Prop, Watch, Vue } from 'vue-property-decorator';
 import {
   AlertPlugin,
@@ -140,6 +85,7 @@ import {
   FormPlugin,
   FormDatepickerPlugin,
   FormGroupPlugin,
+  ButtonPlugin,
 } from 'bootstrap-vue';
 import store from '../store';
 import { image } from '../images';
@@ -157,15 +103,16 @@ Vue.use(FormDatepickerPlugin);
 Vue.use(FormGroupPlugin);
 Vue.use(AlertPlugin);
 Vue.use(CardPlugin);
+Vue.use(ButtonPlugin);
 
 @Component({
   components: {
     CreateAlbum,
   },
 })
-export default class EditView extends Vue {
+export default class ThumbnailView extends Vue {
   @Prop(String) private readonly id: string | undefined;
- public data() {
+  public data() {
     return {
       Album: {
         Date: 0,
@@ -180,29 +127,38 @@ export default class EditView extends Vue {
       },
       pictures: [],
       a: store.state.albumsData,
+      images: store.state.images,
       items: store.state.albums,
       selectedItem: '',
       selectedPicBaseItem: '',
-      fields: [
-        'index',
-        { key: 'order', sortable: true },
-        { key: 'Description', sortable: true },
-        { key: 'Md5' },
-      ],
+      fields: [{ key: 'Md5' }],
+      currentPic: '',
+      currentMd5: '',
     };
   }
   @Watch('a')
-public  changeAlbum(newVal: any, oldVal: any) {
+  public changeAlbum(newVal: any, oldVal: any) {
     // console.log('Change Album');
     this.$data.albums = newVal.find(
-      (album: any) => album.id === this.$data.selectedItem,
-    );
+      (album: any) => album.id === this.$data.selectedItem    );
     if (this.$data.albums && this.$data.albums !== null) {
       this.adaptAlbum(this.$data.albums);
     }
   }
-public  created() {
-    console.log('Create editor');
+  @Watch('images')
+  public changeImage(newVal: any, oldVal: any) {
+    const entry = newVal.find((x: any) => x.md5 === this.$data.currentMd5);
+    // console.log('Got: <'+entry+'>')
+    /*newVal.forEach((e:any) => {
+      console.log('MD5: <'+e.md5+'> check <'+this.$data.currentMd5+'>'+(e.md5 === this.$data.currentMd5));
+    });*/
+    if (entry) {
+      // console.log('Found: <'+entry.md5+'>')
+      this.$data.currentPic = entry.src;
+    }
+  }
+  public created() {
+    // console.log('Create editor');
     this.$data.Album.Pictures = [];
     const items = this.getItems();
     if (items.length < 2) {
@@ -218,8 +174,8 @@ public  created() {
       (error: any) => console.log('Load error: ' + error),
     );
   }
-public  changeOrder(from: any, to: any) {
-    console.log('Change ' + from + ' to ' + to);
+  public changeOrder(from: any, to: any) {
+    // console.log('Change ' + from + ' to ' + to);
     if (to === from) {
       return;
     }
@@ -237,13 +193,22 @@ public  changeOrder(from: any, to: any) {
     console.log('Pictures after ' + JSON.stringify(this.$data.Album.Pictures));
     (this.$refs.picTable as any).refresh();
   }
-public  getItems() {
+  public selectedTitle() {
+    if (
+      this.$data.selectedItem < 1 ||
+      this.$data.items.length < this.$data.selectedItem
+    ) {
+      return '';
+    }
+    return this.$data.items[this.$data.selectedItem - 1].Title;
+  }
+  public getItems() {
     return store.state.albums;
   }
-public  deleteRecord() {
+  public deleteRecord() {
     albums.deleteAlbum(this.$data.Isn);
   }
- public addPicture() {
+  public addPicture() {
     const x = {
       Description: 'Extra',
       Fill: 'Fill',
@@ -258,11 +223,11 @@ public  deleteRecord() {
 
     this.$data.Album.Pictures.push(x);
   }
-public  refreshAlbums() {
+  public refreshAlbums() {
     store.commit('CLEAR', '');
     store.dispatch('INIT_ALBUMS', '');
   }
- public adaptAlbum(albumCard: any) {
+  public adaptAlbum(albumCard: any) {
     // console.log('Receive ' + JSON.stringify(albumCard));
     this.$data.Isn = albumCard.id;
     this.$data.Album.Title = albumCard.Title;
@@ -286,7 +251,7 @@ public  refreshAlbums() {
     this.$data.Album.Metadata.AlbumDescription = albumCard.Title;
     // console.log('Found ' + JSON.stringify(this.Album));
   }
- public fetchAlbumData(idx: string) {
+  public fetchAlbumData(idx: string) {
     // console.log('Select and fetch <' + this.selectedItem + '> ' + idx);
     if (!this.$data.selectedItem) {
       return;
@@ -305,8 +270,8 @@ public  refreshAlbums() {
       loadImage: false,
     });
   }
- private loadPictureBase() {
-    console.log('Load picture base');
+  private loadPictureBase() {
+    // console.log('Load picture base');
   }
   private fetchPictureBase() {
     console.log('Fetch picture base');
@@ -339,6 +304,17 @@ public  refreshAlbums() {
     // console.log('Thumbnail: ' + JSON.stringify(data));
     const i = store.getters.getThumbnailByMd5(data);
     if (i) {
+      return i.src;
+    }
+    return '';
+  }
+  private loadImage(data: any) {
+    console.log('Request Images ' + data);
+    this.$data.currentMd5 = data;
+    store.dispatch('LOAD_IMAGE', data);
+    const i = store.getters.getImageByMd5(data);
+    if (i) {
+      this.$data.currentPic = i.src;
       return i.src;
     }
     return '';

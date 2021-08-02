@@ -24,12 +24,8 @@
           slot="img"
         >
           <div class="fillHeight" :style="'background-image:url('+r.pic+')'"></div>
-          <!--img :src="r.pic" :alt="'image slot '+r.MIMEType" /-->
-        </div>
-        <div v-else class="image slot" slot="img">
-          <!--video class="d-block vw-100 video-fluid" controls>
-           <source :src="r.pic" type="video/mp4" />
-          </video-->
+         </div>
+        <div v-else class="image slot text-center vw-100" slot="img">
           <video controls id="tribune" class="fillHeight">
             <source :src="r.pic" type="video/mp4" />Your browser does not support the video tag.
           </video>

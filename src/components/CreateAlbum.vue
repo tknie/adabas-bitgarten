@@ -1,87 +1,87 @@
 <!--
  * Copyright (c) 2020 Software AG (http://www.softwareag.com/)
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
+ * Licensed under the Apache License, Version 2.0 (the 'License');
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
+ * distributed under the License is distributed on an 'AS IS' BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.-->
 
 <template>
-  <div class="createalbum p-2">
-    <b-button v-b-modal.modal-1 variant="primary">Create Album</b-button>
+  <div class='createalbum p-2'>
+    <b-button v-b-modal.modal-1 variant='primary'>Create Album</b-button>
 
     <b-modal
-      @ok="handleOk"
-      id="modal-1"
-      size="xl"
-      variant="outline-danger"
-      title="Create Album"
+      @ok='handleOk'
+      id='modal-1'
+      size='xl'
+      variant='outline-danger'
+      title='Create Album'
     >
-      <p class="my-4">Please provide new Album parameters</p>
-      <b-card bg-variant="light">
+      <p class='my-4'>Please provide new Album parameters</p>
+      <b-form>
         <b-form-group
-          label-cols-lg="3"
-          label="Album"
-          label-size="lg"
-          label-class="font-weight-bold pt-0"
-          class="mb-0"
+          label-cols-lg='3'
+          label='Album'
+          label-size='lg'
+          label-class='font-weight-bold pt-0'
+          class='mb-0'
         >
           <b-form-group
-            label-cols-sm="3"
-            label="Album name:"
-            label-align-sm="right"
-            label-for="nested-dbid"
+            label-cols-sm='3'
+            label='Album name:'
+            label-align-sm='right'
+            label-for='nested-dbid'
           >
-            <b-form-input v-model="Album.Title" id="nested-dbid"></b-form-input>
+            <b-form-input v-model='Album.Title' id='nested-dbid'></b-form-input>
           </b-form-group>
           <b-form-group
-            label-cols-sm="3"
-            label="Description:"
-            label-align-sm="right"
-            label-for="nested-name"
+            label-cols-sm='3'
+            label='Description:'
+            label-align-sm='right'
+            label-for='nested-name'
           >
             <b-form-input
-              v-model="Album.Metadata.AlbumDescription"
-              id="nested-name"
+              v-model='Album.Metadata.AlbumDescription'
+              id='nested-name'
             ></b-form-input>
           </b-form-group>
           <b-form-group
-            label-cols-sm="3"
-            label="Base images:"
-            label-align-sm="right"
-            label-for="nested-checkpoint"
+            label-cols-sm='3'
+            label='Base images:'
+            label-align-sm='right'
+            label-for='nested-checkpoint'
           >
             <b-form-select
-              v-model="selected"
-              v-on:change="selectedPictureBase"
-              :options="pictures"
+              v-model='selected'
+              v-on:change='selectedPictureBase'
+              :options='pictures'
             ></b-form-select>
           </b-form-group>
         </b-form-group>
-      </b-card>
+      </b-form>
       <b-table
-        ref="picTable"
+        ref='picTable'
         striped
         flip-list-move
         hover
-        :items="Album.Pictures"
-        :fields="fields"
+        :items='Album.Pictures'
+        :fields='fields'
       >
-        <template v-slot:cell(Name)="data"
+        <template v-slot:cell(Name)='data'
           >{{ data.item.Name }} [{{ data.item.Md5 }}]
         </template>
-        <template v-slot:cell(thumbnail)="data">
+        <template v-slot:cell(thumbnail)='data'>
           <img
-            :src="Thumbnail(data.item.Md5)"
-            class="rounded"
-            :alt="'Error loading'"
+            :src='Thumbnail(data.item.Md5)'
+            class='rounded'
+            :alt='"Error loading"'
           />
         </template>
       </b-table>
@@ -89,7 +89,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script lang='ts'>
 import { Component, Prop, Vue } from 'vue-property-decorator';
 import axios from 'axios';
 import {
@@ -117,8 +117,8 @@ Vue.use(ModalPlugin);
 
 @Component
 export default class CreateAlbum extends Vue {
-  @Prop(String) readonly url: string | undefined;
-  data() {
+  @Prop(String) private readonly url: string | undefined;
+  public data() {
     return {
       selected: null,
       pictures: [],
@@ -142,7 +142,7 @@ export default class CreateAlbum extends Vue {
       db: null,
     };
   }
-  created() {
+  public created() {
     console.log('Created');
     this.$data.Isn = 0;
     this.$data.Album.Date = Math.floor(new Date().getTime() / 1000);
@@ -153,7 +153,7 @@ export default class CreateAlbum extends Vue {
       this.$data.pictures = p;
     });
   }
-  Thumbnail(data: any) {
+  public Thumbnail(data: any) {
     // console.log('Thumbnail: ' + JSON.stringify(data));
     const i = store.getters.getThumbnailByMd5(data);
     if (i) {
@@ -161,14 +161,14 @@ export default class CreateAlbum extends Vue {
     }
     return '';
   }
-  private handleOk(bvModalEvt: any) {
+  public handleOk(bvModalEvt: any) {
     console.log('Handle OK');
     // const getConfig = {
-    //   headers: authHeader("application/json"),
+    //   headers: authHeader('application/json'),
     // };
     // axios
     //   .post(
-    //     config.Url() + "/adabas/database/" + this.$data.db.dbid() + "/file",
+    //     config.Url() + '/adabas/database/' + this.$data.db.dbid() + '/file',
     //     this.$data.createFile,
     //     getConfig
     //   )
@@ -177,16 +177,16 @@ export default class CreateAlbum extends Vue {
     //   })
     //   .catch(function(error) {
     //     console.log(
-    //       error.response.statusText + ":" + JSON.stringify(error.response)
+    //       error.response.statusText + ':' + JSON.stringify(error.response)
     //     );
     //   });
     albums.storeAlbums(this.$data.Album);
   }
-  onSubmit(evt: any) {
+  public onSubmit(evt: any) {
     evt.preventDefault();
     albums.storeAlbums(this.$data.Album);
   }
-  selectedPictureBase(myarg: any) {
+  public selectedPictureBase(myarg: any) {
     console.log('Select picture base ' + this.$data.selected);
     image.loadPictureDirectory(this.$data.selected).then((element: any) => {
       // console.log('Fetched picture base ' + JSON.stringify(element));
@@ -213,7 +213,7 @@ export default class CreateAlbum extends Vue {
 }
 </script>
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
+<!-- Add 'scoped' attribute to limit CSS to this component only -->
 <style scoped>
 h3 {
   margin: 40px 0 0;

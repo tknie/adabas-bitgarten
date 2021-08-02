@@ -1,19 +1,19 @@
 <template>
   <div class="registry">
     <MyHeader></MyHeader>
-    <Thumbnails></Thumbnails>
+    <Thumbs></Thumbs>
   </div>
 </template>
 
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
 import MyHeader from '@/components/Header.vue';
-import Thumbnails from '@/components/Thumbnails.vue';
+import Thumbs from '@/components/Thumbs.vue';
 
 @Component({
   components: {
     MyHeader,
-    Thumbnails,
+    Thumbs,
   },
 })
 export default class Registry extends Vue {}

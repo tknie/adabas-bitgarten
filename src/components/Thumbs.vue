@@ -14,7 +14,7 @@
  * limitations under the License.-->
 
 <template>
-  <div class="thumbnails">
+  <div class="thumbs">
     <b-container
       ><b-row><b-col>xxxx</b-col><b-col>yyyy</b-col></b-row
       ><b-row><b-col>xxxx</b-col><b-col>yyyy</b-col></b-row></b-container

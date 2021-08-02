@@ -19,6 +19,11 @@ export default new Router({
       component: () => import('./views/Pictures.vue'),
     },
     {
+      path: '/thumbnail',
+      name: 'thumbnail',
+      component: () => import('./views/Thumbnails.vue'),
+    },
+    {
       path: '/editor',
       name: 'editor',
       component: () => import('./views/Editor.vue'),

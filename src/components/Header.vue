@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="header">
     <b-navbar toggleable="lg" type="dark" variant="success">
       <b-navbar-brand href="#">Bitgarten</b-navbar-brand>
 
@@ -8,6 +8,7 @@
       <b-collapse id="nav-collapse" is-nav>
         <b-navbar-nav>
           <b-nav-item to="/">&Uuml;bersicht</b-nav-item>
+          <b-nav-item to="/thumbnail">Thumbnail</b-nav-item>
           <b-nav-item v-if="checked" to="/editor">Editor</b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto" right>

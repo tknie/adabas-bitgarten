@@ -30,7 +30,6 @@ export default new Vuex.Store({
       return state.albumsData.find((a) => a.id === id);
     },
     getImageByMd5: (state, getters) => (md5: any) => {
-      // console.log('Get image ' + state.images);
       return state.images.find((a) => a.md5 === md5);
     },
     getThumbnailByMd5: (state, getters) => (md5: any) => {
@@ -76,10 +75,10 @@ export default new Vuex.Store({
         headers: authHeader('application/json'),
         useCredentails: true,
       };
-      console.log('Init receiving Albums');
+      // console.log('Init receiving Albums');
       const data = await axios.get(config.Url() + '/rest/map/Albums?fields=Title,Date,Thumbnail&limit=0',
         getConfig).then((response: any) => {
-          console.log('Receiving Albums ' + response.status);
+          // console.log('Receiving Albums ' + response.status);
           if (response.status !== 200) {
             console.log('Error receiving Albums ' + response.status);
             if (response.status === 401 || response.status === 404) {
