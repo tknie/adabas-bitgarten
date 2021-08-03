@@ -120,7 +120,9 @@ func (album *Album) e(div *html.Node, interval string) error {
 	if err != nil {
 		return err
 	}
-	p.Interval = uint32(i)
+	if i>1 {
+	  p.Interval = uint32(i)
+        }
 	var f func(*html.Node)
 	f = func(n *html.Node) {
 		if n.Type == html.ElementNode {
