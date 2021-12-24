@@ -7,19 +7,25 @@
         </b-alert>
       </div>
       <div>
-        <b-button pill variant='outline-primary' @click='refreshAlbums'
-          >Refresh</b-button
-        >
+        <b-alert show variant='success'>Bitte Album auswählen:</b-alert>
         <b-form-select
+          variant='outline-success'
           v-model='selectedItem'
           @change='fetchAlbumData(selectedItem)'
-        >
+          ><option value='null'>Bitte Album auswählen</option>
           <option
             v-for='(item, index) in items'
-            :key='item.Title'
+            :key='item.DateTime'
             :value='index + 1'
           >
-            {{ index + 1 + '. ' + item.Title + ' - ' + item.Date }}
+            {{
+              index +
+              1 +
+              '. ' +
+              item.Title +
+              ' - ' +
+              new Date(item.DateTime * 1000).toUTCString()
+            }}
           </option>
         </b-form-select>
       </div>
@@ -29,10 +35,36 @@
       <b-alert show variant='success'>{{ selectedTitle() }}</b-alert>
       <b-container fluid class='bv-example-row mb-3'>
         <b-modal centered size='xl' id='modal-image' title='Image' ok-only
-          ><b-img fluid :src='currentPic'
-        /></b-modal>
+          ><b-img center fluid :src='currentPic' class='vh-100' />
+          <b-alert show class='text-center' variant='success'>{{
+            selectedDescription
+          }}</b-alert>
+          <b-alert
+            class='w-50 pb-2 d-inline-block'
+            size='sm'
+            id='notice'
+            show
+            variant='danger'
+            >{{ selectedTitle() }}</b-alert
+          >
+          <b-alert
+            class='w-50 pb-2 d-inline-block text-right'
+            size='sm'
+            id='download'
+            show
+            variant='danger'
+          >
+            <a
+              :download='"custom-" + currentMd5 + ".jpg"'
+              :href='currentPic'
+              title='ImageName'
+            >
+              &gt;Download Bild&lt;
+            </a>
+          </b-alert>
+        </b-modal>
         <b-modal centered size='xl' id='modal-video' title='Video' ok-only
-          ><video controls id='tribune' slot='img' class='fillHeight'>
+          ><video center controls id='tribune' class='vh-100 fillHeight'>
             <source :src='currentPic' type='video/mp4' />
             Your browser does not support the video tag.
           </video></b-modal
@@ -60,13 +92,9 @@
               variant='outline-primary'
               v-else
               v-b-modal.modal-video
-              v-on:click='loadImage(p.Md5)'
+              v-on:click='loadVideo(p.Md5)'
               >{{ index + 1 }} Video Movie</b-button
             >
-            <!--video v-else controls id='tribune' slot='img' class='fillHeight'>
-              <source :src='p.pic' type='video/mp4' />
-              Your browser does not support the video tag.
-            </video-->
             <div class='w-100' v-if='(index + 1) % 5 === 0' /> </b-col></b-row
       ></b-container>
     </div>
@@ -129,9 +157,10 @@ export default class ThumbnailView extends Vue {
       a: store.state.albumsData,
       images: store.state.images,
       items: store.state.albums,
-      selectedItem: '',
+      selectedItem: null,
       selectedPicBaseItem: '',
       fields: [{ key: 'Md5' }],
+      selectedDescription: '',
       currentPic: '',
       currentMd5: '',
     };
@@ -139,8 +168,8 @@ export default class ThumbnailView extends Vue {
   @Watch('a')
   public changeAlbum(newVal: any, oldVal: any) {
     // console.log('Change Album');
-    this.$data.albums = newVal.find(
-      (album: any) => album.id === this.$data.selectedItem    );
+    const id = this.$data.items[this.$data.selectedItem - 1].ISN;
+    this.$data.albums = newVal.find((album: any) => album.id === id);
     if (this.$data.albums && this.$data.albums !== null) {
       this.adaptAlbum(this.$data.albums);
     }
@@ -148,8 +177,8 @@ export default class ThumbnailView extends Vue {
   @Watch('images')
   public changeImage(newVal: any, oldVal: any) {
     const entry = newVal.find((x: any) => x.md5 === this.$data.currentMd5);
-    // console.log('Got: <'+entry+'>')
-    /*newVal.forEach((e:any) => {
+    /*console.log('Got: ' + this.$data.currentMd5 + '<' + entry + '>');
+    newVal.forEach((e:any) => {
       console.log('MD5: <'+e.md5+'> check <'+this.$data.currentMd5+'>'+(e.md5 === this.$data.currentMd5));
     });*/
     if (entry) {
@@ -171,29 +200,16 @@ export default class ThumbnailView extends Vue {
         // console.log('Loaded all pictures ' + JSON.stringify(this.pictures));
         return response.data;
       },
-      (error: any) => console.log('Load error: ' + error),
+      (error: any) => {
+        console.log('Load error: ' + error);
+      },
     );
   }
-  public changeOrder(from: any, to: any) {
-    // console.log('Change ' + from + ' to ' + to);
-    if (to === from) {
-      return;
-    }
-    console.log('Pictures before ' + JSON.stringify(this.$data.Album.Pictures));
-    const pics = [];
-    for (let i = 0; i < this.$data.Album.Pictures.length; i++) {
-      if (i === to - 1) {
-        pics.push(this.$data.Album.Pictures[from - 1]);
-      }
-      if (i !== from - 1) {
-        pics.push(this.$data.Album.Pictures[i]);
-      }
-    }
-    this.$data.Album.Pictures = pics;
-    console.log('Pictures after ' + JSON.stringify(this.$data.Album.Pictures));
-    (this.$refs.picTable as any).refresh();
-  }
   public selectedTitle() {
+    if (this.$data.selectedItem === null) {
+      this.$data.selectedItem = 1;
+      return this.$data.items[0].Title;
+    }
     if (
       this.$data.selectedItem < 1 ||
       this.$data.items.length < this.$data.selectedItem
@@ -204,28 +220,6 @@ export default class ThumbnailView extends Vue {
   }
   public getItems() {
     return store.state.albums;
-  }
-  public deleteRecord() {
-    albums.deleteAlbum(this.$data.Isn);
-  }
-  public addPicture() {
-    const x = {
-      Description: 'Extra',
-      Fill: 'Fill',
-      Interval: 8000,
-      MIMEType: 'image/jpeg',
-      Md5: this.$data.Album.Pictures[0].Md5,
-      Size: {
-        Height: this.$data.Album.Pictures[0].Md5.h,
-        Width: this.$data.Album.Pictures[0].Md5.w,
-      },
-    };
-
-    this.$data.Album.Pictures.push(x);
-  }
-  public refreshAlbums() {
-    store.commit('CLEAR', '');
-    store.dispatch('INIT_ALBUMS', '');
   }
   public adaptAlbum(albumCard: any) {
     // console.log('Receive ' + JSON.stringify(albumCard));
@@ -253,52 +247,23 @@ export default class ThumbnailView extends Vue {
   }
   public fetchAlbumData(idx: string) {
     // console.log('Select and fetch <' + this.selectedItem + '> ' + idx);
-    if (!this.$data.selectedItem) {
+    if (this.$data.selectedItem === null || !this.$data.selectedItem) {
       return;
     }
-    // console.log('Get album fetch');
-    const a = store.getters.getAlbumById(this.$data.selectedItem);
+    const id = this.$data.items[this.$data.selectedItem - 1].ISN;
+    // console.log('Get album fetch '+this.$data.selectedItem+' id='+id);
+    const a = store.getters.getAlbumById(id);
     if (a) {
       // console.log('GOT: ' + JSON.stringify(a));
       this.adaptAlbum(a);
       return;
     } else {
-      console.log('FAIL: ' + this.$data.selectedItem);
+      console.log('Not in cache: ' + this.$data.selectedItem);
     }
     store.dispatch('INIT_ALBUM', {
-      nr: this.$data.selectedItem,
+      nr: id,
       loadImage: false,
     });
-  }
-  private loadPictureBase() {
-    // console.log('Load picture base');
-  }
-  private fetchPictureBase() {
-    console.log('Fetch picture base');
-    this.$data.Album.Pictures = [];
-    image
-      .loadPictureDirectory(this.$data.selectedPicBaseItem)
-      .then((element: any) => {
-        // console.log('Fetched picture base ' + JSON.stringify(element));
-        this.$data.Isn = 0;
-        this.$data.Album.Date = Math.floor(new Date().getTime() / 1000);
-        this.$data.Album.Generated = Math.floor(new Date().getTime() / 1000);
-        this.$data.Album.Pictures = [];
-        element.forEach((p: any) => {
-          const x = {
-            Description: p.title,
-            Fill: 'fill',
-            Interval: 8000,
-            MIMEType: 'image/jpeg',
-            Md5: p.msrc,
-            Name: p.title,
-            Size: { Height: 1280, Width: 960 },
-          };
-          this.$data.Album.Pictures.push(x);
-          // console.log('Load thumb: ' + p.msrc);
-          store.dispatch('LOAD_THUMB', p.msrc);
-        });
-      });
   }
   private Thumbnail(data: any) {
     // console.log('Thumbnail: ' + JSON.stringify(data));
@@ -309,44 +274,36 @@ export default class ThumbnailView extends Vue {
     return '';
   }
   private loadImage(data: any) {
-    console.log('Request Images ' + data);
+    // console.log('Load Image ' + data);
     this.$data.currentMd5 = data;
+    const p = this.$data.Album.Pictures.find((x: any) => x.Md5 === data);
+    this.$data.selectedDescription = p.Description;
     store.dispatch('LOAD_IMAGE', data);
     const i = store.getters.getImageByMd5(data);
     if (i) {
       this.$data.currentPic = i.src;
+      // console.log('Found Image ' + data);
       return i.src;
     }
     return '';
   }
-  private save(evt: any) {
-    console.log('Save clicked');
-  }
-  private onSubmit(evt: any) {
-    evt.preventDefault();
-    albums.storeAlbums(this.$data.Album);
-  }
-  private onUpdate(evt: any) {
-    evt.preventDefault();
-    this.$data.Album.Metadata.Thumbnail = this.$data.Album.Pictures[0].Md5;
-    albums.updateAlbums(this.$data.Isn, this.$data.Album);
-    store.commit('CLEAR', '');
-    store.dispatch('INIT_ALBUM', { nr: this.$data.Isn, loadImage: false });
-  }
-  private onReset(evt: any) {
-    evt.preventDefault();
-    // Reset our form values
-    this.$data.form.email = '';
-    this.$data.form.name = '';
-    this.$data.form.food = null;
-    this.$data.form.checked = [];
-    // Trick to reset/clear native browser form validation state
-    this.$data.show = false;
-    this.$nextTick(() => {
-      this.$data.show = true;
-    });
+  private loadVideo(data: any) {
+    // console.log('Load Video ' + data);
+    this.$data.currentMd5 = data;
+    store.dispatch('LOAD_VIDEO', data);
+    const i = store.getters.getImageByMd5(data);
+    if (i) {
+      this.$data.currentPic = i.src;
+      // console.log('Found Video ' + data);
+      return i.src;
+    }
+    return '';
   }
 }
 </script>
 
-<style></style>
+<style>
+#notice #download {
+  font-size: 12px;
+}
+</style>

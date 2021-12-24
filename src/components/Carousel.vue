@@ -25,8 +25,8 @@
         >
           <div class="fillHeight" :style="'background-image:url('+r.pic+')'"></div>
          </div>
-        <div v-else class="image slot text-center vw-100" slot="img">
-          <video controls id="tribune" class="fillHeight">
+        <div v-else class="image slot text-center vh-100" slot="img">
+          <video controls id="tribune" class="fill">
             <source :src="r.pic" type="video/mp4" />Your browser does not support the video tag.
           </video>
         </div>

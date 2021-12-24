@@ -52,10 +52,21 @@ export default new Vuex.Store({
       albums.forEach((a: any) => {
         const d = new Date(a.Date * 1000);
         const x = {
-          ISN: a.ISN, Title: a.Title, Date: d,
+          ISN: a.ISN, Title: a.Title, Date: d, DateTime: a.Date,
           Thumbnail: a.Metadata.Thumbnail,
         };
         state.albums.push(x);
+        const sorted = state.albums.sort((a1: any, b: any) => {
+          if (a1.DateTime < b.DateTime) {
+            return -1;
+          }
+          if (a1.DateTime > b.DateTime) {
+            return 1;
+          }
+          return 0;
+        });
+        //        console.log("X" + JSON.stringify(sorted));
+        state.albums = sorted;
       });
       //      state.albums = albums;
     },
@@ -217,12 +228,12 @@ export default new Vuex.Store({
         if ((response) && (response.data)) {
           const i = {
             md5, width: 0, height: 0, fill: 'fillHeight',
-            MIMEType: 'video', src: response.data, time: new Date(),
+            MIMEType: 'video/mp4', src: response.data, time: new Date(),
           };
           context.commit('ADD_IMAGE', i);
         }
       },
-        (error) => console.log('Error loading image' + error));
+        (error) => console.log('Error loading video' + error));
     },
     LOAD_THUMB: async (context, md5) => {
       const x = context.getters.getThumbnailByMd5(md5);

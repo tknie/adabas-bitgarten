@@ -12,14 +12,6 @@
           <b-nav-item v-if="checked" to="/editor">Editor</b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto" right>
-          <b-nav-form>
-            <b-form-checkbox
-              v-model="checked"
-              @change="changeChecked(checked, $event)"
-              switch
-            >
-            </b-form-checkbox>
-          </b-nav-form>
           <b-nav-item v-on:click="logout">Logout</b-nav-item>
         </b-navbar-nav>
       </b-collapse>
