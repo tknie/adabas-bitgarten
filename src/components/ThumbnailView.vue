@@ -1,29 +1,29 @@
 <template>
-  <div class='thumbnailView'>
+  <div class="thumbnailView">
     <div>
       <div>
-        <b-alert show variant='success'>
-          <h5 class='alert-heading'>Thumbnails view ...</h5>
+        <b-alert show variant="success">
+          <h5 class="alert-heading">Thumbnails view ...</h5>
         </b-alert>
       </div>
       <div>
-        <b-alert show variant='success'>Bitte Album auswählen:</b-alert>
+        <b-alert show variant="success">Bitte Album auswählen:</b-alert>
         <b-form-select
-          variant='outline-success'
-          v-model='selectedItem'
-          @change='fetchAlbumData(selectedItem)'
-          ><option value='null'>Bitte Album auswählen</option>
+          variant="outline-success"
+          v-model="selectedItem"
+          @change="fetchAlbumData(selectedItem)"
+          ><option value="null">Bitte Album auswählen</option>
           <option
-            v-for='(item, index) in items'
-            :key='item.DateTime'
-            :value='index + 1'
+            v-for="(item, index) in items"
+            :key="item.DateTime"
+            :value="index + 1"
           >
             {{
               index +
               1 +
-              '. ' +
+              ". " +
               item.Title +
-              ' - ' +
+              " - " +
               new Date(item.DateTime * 1000).toUTCString()
             }}
           </option>
@@ -32,70 +32,68 @@
       <div></div>
     </div>
     <div>
-      <b-alert show variant='success'>{{ selectedTitle() }}</b-alert>
-      <b-container fluid class='bv-example-row mb-3'>
-        <b-modal centered size='xl' id='modal-image' title='Image' ok-only
-          ><b-img center fluid :src='currentPic' class='vh-100' />
-          <b-alert show class='text-center' variant='success'>{{
+      <b-alert show variant="success">{{ selectedTitle() }}</b-alert>
+      <b-container fluid class="bv-example-row mb-3">
+        <b-modal centered size="xl" id="modal-image" title="Image" ok-only
+          ><b-img center fluid :src="currentPic" class="vh-100" />
+          <b-alert show class="text-center" variant="success">{{
             selectedDescription
           }}</b-alert>
           <b-alert
-            class='w-50 pb-2 d-inline-block'
-            size='sm'
-            id='notice'
+            class="w-50 pb-2 d-inline-block"
+            size="sm"
+            id="notice"
             show
-            variant='danger'
+            variant="danger"
             >{{ selectedTitle() }}</b-alert
           >
           <b-alert
-            class='w-50 pb-2 d-inline-block text-right'
-            size='sm'
-            id='download'
+            class="w-50 pb-2 d-inline-block text-right"
+            size="sm"
+            id="download"
             show
-            variant='danger'
+            variant="danger"
           >
             <a
-              :download='"custom-" + currentMd5 + ".jpg"'
-              :href='currentPic'
-              title='ImageName'
+              :download="'custom-' + currentMd5 + '.jpg'"
+              :href="currentPic"
+              title="ImageName"
             >
               &gt;Download Bild&lt;
             </a>
           </b-alert>
         </b-modal>
-        <b-modal centered size='xl' id='modal-video' title='Video' ok-only
-          ><video center controls id='tribune' class='vh-100 fillHeight'>
-            <source :src='currentPic' type='video/mp4' />
+        <b-modal centered size="xl" id="modal-video" title="Video" ok-only
+          ><video center controls id="tribune" class="vh-100 fillHeight">
+            <source :src="currentPic" type="video/mp4" />
             Your browser does not support the video tag.
           </video></b-modal
         >
-        <b-row align-h='around'>
-          <b-col
-            align-v='center'
-            style='width: 10%; display: inline-block'
-            v-for='(p, index) in Album.Pictures'
-            v-bind:key='p.Md5'
-          >
-            <b-button
-              variant='outline-primary'
-              v-if='p.MIMEType.startsWith("image")'
-              v-b-modal.modal-image
-              v-on:click='loadImage(p.Md5)'
-              >{{ index + 1 }}
-              <b-img
-                class='rounded'
-                thumbnail
-                fluid
-                :src='Thumbnail(p.Md5)'
-                alt='Error loading' /></b-button
-            ><b-button
-              variant='outline-primary'
-              v-else
-              v-b-modal.modal-video
-              v-on:click='loadVideo(p.Md5)'
-              >{{ index + 1 }} Video Movie</b-button
+        <b-row align-h="around">
+          <div v-for="(p, index) in Album.Pictures" v-bind:key="p.Md5">
+            <b-col align-v="center" style="display: inline-block">
+              <b-button
+                variant="outline-primary"
+                v-if="p.MIMEType.startsWith('image')"
+                v-b-modal.modal-image
+                v-on:click="loadImage(p.Md5)"
+                >{{ index + 1 }}
+                <b-img
+                  class="rounded"
+                  thumbnail
+                  fluid
+                  :src="Thumbnail(p.Md5)"
+                  alt="Error loading" /></b-button
+              ><b-button
+                variant="outline-primary"
+                v-else
+                v-b-modal.modal-video
+                v-on:click="loadVideo(p.Md5)"
+                >{{ index + 1 }} Video Movie</b-button
+              ></b-col
             >
-            <div class='w-100' v-if='(index + 1) % 5 === 0' /> </b-col></b-row
+            <div class="w-100" v-if="(index + 1) % 5 === 0"></div>
+          </div> </b-row
       ></b-container>
     </div>
   </div>
@@ -114,10 +112,10 @@ import {
   FormDatepickerPlugin,
   FormGroupPlugin,
   ButtonPlugin,
+  LayoutPlugin,
 } from 'bootstrap-vue';
 import store from '../store';
 import { image } from '../images';
-import { albums } from '../albums';
 import 'bootstrap/dist/css/bootstrap.css';
 import 'bootstrap-vue/dist/bootstrap-vue.css';
 import CreateAlbum from './CreateAlbum.vue';
@@ -131,6 +129,7 @@ Vue.use(FormDatepickerPlugin);
 Vue.use(FormGroupPlugin);
 Vue.use(AlertPlugin);
 Vue.use(CardPlugin);
+Vue.use(LayoutPlugin);
 Vue.use(ButtonPlugin);
 
 @Component({

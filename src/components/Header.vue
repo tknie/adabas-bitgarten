@@ -76,7 +76,7 @@ export default class Header extends Vue {
     console.log('Call logout');
     userService.logout();
     store.commit('CLEAR', '');
-    location.reload(true);
+    location.reload();
   }
 }
 </script>

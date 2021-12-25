@@ -87,7 +87,7 @@ export default new Vuex.Store({
         useCredentails: true,
       };
       // console.log('Init receiving Albums');
-      const data = await axios.get(config.Url() + '/rest/map/Albums?fields=Title,Date,Thumbnail&limit=0',
+      await axios.get(config.Url() + '/rest/map/Albums?fields=Title,Date,Thumbnail&limit=0',
         getConfig).then((response: any) => {
           // console.log('Receiving Albums ' + response.status);
           if (response.status !== 200) {
@@ -95,7 +95,7 @@ export default new Vuex.Store({
             if (response.status === 401 || response.status === 404) {
               // auto logout if 401 response returned from api
               userService.logout();
-              location.reload(true);
+              location.reload();
             }
 
             const error = response.statusText;
@@ -120,7 +120,7 @@ export default new Vuex.Store({
           console.log('Error receiving Albums' + JSON.stringify(error));
           userService.logout();
           if (router.currentRoute.name !== 'login') {
-            location.reload(true);
+            location.reload();
           }
         });
     },
@@ -134,14 +134,14 @@ export default new Vuex.Store({
         useCredentails: true,
       };
       // console.log('Init album ' + x.nr);
-      const data = await axios.get(`${config.Url()}/rest/map/Album/${x.nr}`,
+      await axios.get(`${config.Url()}/rest/map/Album/${x.nr}`,
         getConfig).then((response) => {
           if (response.status !== 200) {
             console.log('Error loading album ' + x.nr + ':' + response.status);
             if (response.status === 401 || response.status === 404) {
               // auto logout if 401 response returned from api
               userService.logout();
-              location.reload(true);
+              location.reload();
             }
 
             const error = response.statusText;
@@ -182,7 +182,7 @@ export default new Vuex.Store({
         },
           (error) => {
             userService.logout();
-            location.reload(true);
+            location.reload();
           });
     },
     LOAD_IMAGE: async (context, md5) => {

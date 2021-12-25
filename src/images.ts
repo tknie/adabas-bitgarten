@@ -71,7 +71,7 @@ export async function loadPictureDirectory(directory: string) {
                     if (response.status === 401 || response.status === 404) {
                         // auto logout if 401 response returned from api
                         userService.logout();
-                        location.reload(true);
+                        location.reload();
                     }
 
                     const error = (data && data.message) || response.statusText;
@@ -97,7 +97,7 @@ function handleResponse(response: any) {
             if (response.status === 401 || response.status === 404) {
                 // auto logout if 401 response returned from api
                 userService.logout();
-                location.reload(true);
+                location.reload();
             }
 
             const error = (data && data.message) || response.statusText;
@@ -121,7 +121,7 @@ export async function loadVideo(md5: string) {
     return await axios({
         // example url
         url: config.Url() +
-            '/binary/map/Picture/*/Media?search=Md5=' +
+            '/video/map/PictureBinary/*/Media?mimetypeField=MIMEType&search=Md5=' +
             md5,
         method: 'GET',
         headers: authHeader(''),

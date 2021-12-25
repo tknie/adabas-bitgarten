@@ -150,7 +150,7 @@ export default {
         (user) => {
           router.push(this.returnUrl);
           if (this.returnUrl === '/') {
-            location.reload(true);
+            location.reload();
           }
         },
         (error) => {
