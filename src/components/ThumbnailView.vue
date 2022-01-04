@@ -64,8 +64,14 @@
           </b-alert>
         </b-modal>
         <b-modal centered size="xl" id="modal-video" title="Video" ok-only
-          ><video center controls id="tribune" class="vh-100 fillHeight">
-            <source :src="currentPic" type="video/mp4" />
+          ><video
+            center
+            controls
+            ref="videoOut"
+            id="videoId"
+            class="vh-100 fillHeight"
+          >
+            <source type="video/mp4" />
             Your browser does not support the video tag.
           </video></b-modal
         >
@@ -115,7 +121,7 @@ import {
   LayoutPlugin,
 } from 'bootstrap-vue';
 import store from '../store';
-import { image } from '../images';
+import { image, streamVideo } from '../images';
 import 'bootstrap/dist/css/bootstrap.css';
 import 'bootstrap-vue/dist/bootstrap-vue.css';
 import CreateAlbum from './CreateAlbum.vue';
@@ -186,7 +192,7 @@ export default class ThumbnailView extends Vue {
     }
   }
   public created() {
-    // console.log('Create editor');
+    console.log('Create Thumbnail');
     this.$data.Album.Pictures = [];
     const items = this.getItems();
     if (items.length < 2) {
@@ -203,6 +209,17 @@ export default class ThumbnailView extends Vue {
         console.log('Load error: ' + error);
       },
     );
+  }
+  public mounted() {
+    const interval = setInterval(() => {
+      if (this.$refs.videoOut) {
+        console.log(this.$refs.navideoOutv);
+        // VueComponent{}
+        console.log(this.$refs);
+        // {nav: VueComponent}
+        clearInterval(interval);
+      }
+    }, 50);
   }
   public selectedTitle() {
     if (this.$data.selectedItem === null) {
@@ -287,8 +304,27 @@ export default class ThumbnailView extends Vue {
     return '';
   }
   private loadVideo(data: any) {
-    // console.log('Load Video ' + data);
-    this.$data.currentMd5 = data;
+    console.log('Stream Video ' + data);
+    const interval = setInterval(() => {
+      if (this.$refs.videoOut) {
+        console.log('VT' + this.$refs.videoOut);
+        // VueComponent{}
+        console.log(this.$refs);
+        // {nav: VueComponent}
+        streamVideo(data, this.$refs.videoOut);
+        clearInterval(interval);
+      }
+    }, 50);
+    const vs = this.$refs.videoOut;
+    this.$nextTick(() => {
+      console.log('Video reference src ' + vs + ' ' + this.$refs.videoOut);
+      if (!vs) {
+        return;
+      }
+      streamVideo(data, vs);
+    });
+
+    /*this.$data.currentMd5 = data;
     store.dispatch('LOAD_VIDEO', data);
     const i = store.getters.getImageByMd5(data);
     if (i) {
@@ -296,7 +332,7 @@ export default class ThumbnailView extends Vue {
       // console.log('Found Video ' + data);
       return i.src;
     }
-    return '';
+    return '';*/
   }
 }
 </script>

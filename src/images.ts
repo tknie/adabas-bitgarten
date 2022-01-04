@@ -31,8 +31,10 @@ export async function loadImage(md5: string) {
         const binary = bytes.reduce((data, b) => data += String.fromCharCode(b), '');
         response.data = 'data:image/jpeg;base64,' + btoa(binary);
         const img = new Image();
-        const i = { md5, width: 0, height: 0, fill: 'fill',
-          MIMEType: 'image/jpeg', src: response.data, time: new Date() };
+        const i = {
+            md5, width: 0, height: 0, fill: 'fill',
+            MIMEType: 'image/jpeg', src: response.data, time: new Date(),
+        };
         img.onload = () => {
             i.width = img.width;
             i.height = img.height;
@@ -80,12 +82,12 @@ export async function loadPictureDirectory(directory: string) {
                 // console.log('DATA:' + data);
                 const p: any[] = [];
                 data.Records.forEach((d: any) => {
-                    p.push({title: d.PictureName, msrc: d.Md5, index: d.ISN});
+                    p.push({ title: d.PictureName, msrc: d.Md5, index: d.ISN });
                 });
                 // console.log('Result ' + JSON.stringify(p));
                 return p;
             });
-     },
+        },
             (error: any) => console.log('Picture loading directory: ' + error));
     return ret;
 }
@@ -163,4 +165,56 @@ export async function loadThumbnail(md5: string) {
         return response.data;
     },
         (error: any) => console.log('Image read error ' + md5 + ': ' + error));
+}
+
+export async function streamVideo(md5: string, videoElement: any) {
+    console.log('Streaming Video MD5=' + md5 + ' -> ' + JSON.stringify(videoElement) + ' ' + videoElement);
+    /*if (window.MediaSource) {
+        console.log('MediaSource API not supported');
+        return;
+    }*/
+    const mediaSource = new MediaSource();
+    // This creates a URL that points to the media buffer,
+    // and assigns it to the video element src
+    videoElement.src = URL.createObjectURL(mediaSource);
+    mediaSource.addEventListener('sourceopen', sourceOpen);
+    async function sourceOpen(e: any) {
+        URL.revokeObjectURL(videoElement.src);
+        console.log('Target: ' + e.target);
+        console.log('Ready State:' + mediaSource.readyState);
+        const sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.64002A, mp4a.40.2"');
+        sourceBuffer.onupdateend = () => {
+            console.log('Ready State:' + mediaSource.readyState);
+            // Nothing else to load
+            // mediaSource.endOfStream();
+            // Start playback!
+            // Note: this will fail if video is not muted, due to rules about
+            // autoplay and non-muted videos
+            videoElement.play();
+        };
+        axios.get(
+            config.Url() +
+            '/video/map/PictureBinary/*/Media?mimetypeField=MIMEType&search=Md5=' +
+            md5,
+            {
+                headers: authHeader('video/mp4'),
+                responseType: 'arraybuffer',
+            }).then((response: any) => {
+                const new_blob = new Blob( [ response.data ], { type: 'video/mp4' } );
+                console.log('DataX: ' + new_blob);
+                videoElement.src = URL.createObjectURL(new_blob);
+                // const bytes = new Uint8Array(response.data);
+                sourceBuffer.appendBuffer(response.data);
+                console.log('Ready State:' + mediaSource.readyState);
+                /*const streamData = response.data;
+                streamData.on('data', (chunk: ArrayBuffer) => {
+                    sourceBuffer.appendBuffer(chunk);
+                });
+                streamData.on('end', () => {
+                    mediaSource.endOfStream();
+                    videoElement.play();
+                });*/
+            },
+                (error: any) => console.log('Video stream error ' + md5 + ': ' + error));
+    }
 }
