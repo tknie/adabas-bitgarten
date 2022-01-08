@@ -1,3 +1,18 @@
+<!--
+ * Copyright (c) 2020-2022 Thorsten A. Knieling
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.-->
+
 <template>
   <div class="thumbnailView">
     <div>
@@ -71,7 +86,6 @@
             id="videoId"
             class="vh-100 fillHeight"
           >
-            <source type="video/mp4" />
             Your browser does not support the video tag.
           </video></b-modal
         >
@@ -192,7 +206,7 @@ export default class ThumbnailView extends Vue {
     }
   }
   public created() {
-    console.log('Create Thumbnail');
+    // console.log('Create Thumbnail');
     this.$data.Album.Pictures = [];
     const items = this.getItems();
     if (items.length < 2) {
@@ -211,15 +225,6 @@ export default class ThumbnailView extends Vue {
     );
   }
   public mounted() {
-    const interval = setInterval(() => {
-      if (this.$refs.videoOut) {
-        console.log(this.$refs.navideoOutv);
-        // VueComponent{}
-        console.log(this.$refs);
-        // {nav: VueComponent}
-        clearInterval(interval);
-      }
-    }, 50);
   }
   public selectedTitle() {
     if (this.$data.selectedItem === null) {
@@ -304,35 +309,22 @@ export default class ThumbnailView extends Vue {
     return '';
   }
   private loadVideo(data: any) {
-    console.log('Stream Video ' + data);
+    // console.log('Stream Video ' + data);
     const interval = setInterval(() => {
       if (this.$refs.videoOut) {
-        console.log('VT' + this.$refs.videoOut);
-        // VueComponent{}
-        console.log(this.$refs);
-        // {nav: VueComponent}
+        // console.log('VT' + this.$refs.videoOut);
         streamVideo(data, this.$refs.videoOut);
         clearInterval(interval);
       }
     }, 50);
     const vs = this.$refs.videoOut;
     this.$nextTick(() => {
-      console.log('Video reference src ' + vs + ' ' + this.$refs.videoOut);
+      // console.log('Video reference src ' + vs + ' ' + this.$refs.videoOut);
       if (!vs) {
         return;
       }
       streamVideo(data, vs);
     });
-
-    /*this.$data.currentMd5 = data;
-    store.dispatch('LOAD_VIDEO', data);
-    const i = store.getters.getImageByMd5(data);
-    if (i) {
-      this.$data.currentPic = i.src;
-      // console.log('Found Video ' + data);
-      return i.src;
-    }
-    return '';*/
   }
 }
 </script>

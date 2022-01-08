@@ -1,3 +1,18 @@
+<!--
+ * Copyright (c) 2020-2022 Thorsten A. Knieling
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.-->
+
 <template>
   <div class="albumView">
     <b-table
@@ -20,10 +35,11 @@
           <strong>Loading...</strong>
         </div>
       </template>
- 
+
       <!-- Optional default data cell scoped slot -->
       <template v-slot:cell(Date)="data">
-        <b>{{ data.value }}</b> <br/><h4>{{ data.item.Title }}</h4>
+        <b>{{ data.value }}</b> <br />
+        <h4>{{ data.item.Title }}</h4>
       </template>
       <template v-slot:cell()="data">
         <i>{{ data.value }}</i>
@@ -37,11 +53,6 @@
 
 <script lang='ts'>
 import { Component, Prop, Watch, Vue } from 'vue-property-decorator';
-import { config } from '../config';
-import { authHeader, jwtAuth } from '../auth-header';
-import { userService } from '../user.service';
-import { image } from '../images';
-import { albums } from '../albums';
 import store from '../store';
 
 @Component({
@@ -75,46 +86,28 @@ export default class AlbumView extends Vue {
             return DD + '.' + MM + '.' + YYYY;
           },
         },
-       // 'Title',
-       // { key: 'Title', label: 'Titel' },
+        // 'Title',
+        // { key: 'Title', label: 'Titel' },
         { key: 'Thumbnail', label: '' },
       ],
     };
   }
-  @Watch('items')
-  private onItemsChanged(value: any, oldValue: any) {
-    // if (this.items) {
-    //   value.forEach((element:any,index:number) => {
-    //     if ((!this.images[index])||(this.images[index] === '')) {
-    //       let t = store.getters.getThumbnailByMd5(element.Thumbnail);
-    //       if (t) {
-    //         // Vue.set(this.images,index,t);
-    //       }
-    //     }
-    //   });
-    // }
-  }
-  @Watch('thumbnail')
-  private onThumbnailChanged(value: string, oldValue: string) {
-    // this.items.forEach((i,index) => {
-    //   if (!this.images[index]) {
-    //     const t = value.find((a) => a.md5 === i.Thumbnail);
-    //     if (t) {
-    //       // Vue.set(this.images,index,t);
-    //     }
-    //   }
-    // })
-  }
-  private created() {
+  private mounted() {
     const items = this.getItems();
     if (items.length < 2) {
-      store.dispatch('INIT_ALBUMS', '');
+      // Firefox need some time to omit NS_BINDING_ABORTED
+      this.sleep(1000).then(() => {
+        store.dispatch('INIT_ALBUMS', '');
+      });
     }
     if (items) {
       this.syncImages();
     } else {
       store.dispatch('INIT_ALBUMS', '');
     }
+  }
+  private sleep(ms: any) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
   private Thumbnail(data: any) {
     const i = store.getters.getThumbnailByMd5(data.item.Thumbnail);

@@ -168,7 +168,7 @@ export default new Vuex.Store({
                 context.dispatch('LOAD_IMAGE', i.src);
               } else {
                 // console.log('Load video '+element.Name+' '+i.MIMEType)
-                context.dispatch('LOAD_VIDEO', i.src);
+                // context.dispatch('LOAD_VIDEO', i.src);
               }
             }
             context.dispatch('LOAD_THUMB', i.msrc);
