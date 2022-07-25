@@ -31,9 +31,9 @@ import (
 
 	"github.com/rwcarlsen/goexif/exif"
 
-	"github.com/SoftwareAG/adabas-go-api/adabas"
-	"github.com/SoftwareAG/adabas-go-api/adatypes"
 	"github.com/nfnt/resize"
+	"github.com/tknie/adabas-go-api/adabas"
+	"github.com/tknie/adabas-go-api/adatypes"
 )
 
 // PictureBinary definition
