@@ -224,8 +224,6 @@ export default class ThumbnailView extends Vue {
       },
     );
   }
-  public mounted() {
-  }
   public selectedTitle() {
     if (this.$data.selectedItem === null) {
       this.$data.selectedItem = 1;
