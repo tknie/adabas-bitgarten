@@ -54,9 +54,9 @@
 
         <!-- Footer -->
         <footer>
-            <div class="row">
+            <div class="row bg-black">
                 <div class="col-lg-12">
-                    <p>Copyright &copy; Thorsten Knieling und Familie 2018-2019</p>
+                    <p>Copyright &copy; Thorsten Knieling und Familie 2018-2022</p>
                 </div>
             </div>
             <!-- /.row -->

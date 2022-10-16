@@ -15,8 +15,10 @@
 
 <template>
   <div class="header">
-    <b-navbar toggleable="lg" type="dark" variant="success">
-      <b-navbar-brand href="#">Bitgarten</b-navbar-brand>
+    <b-navbar toggleable="lg" type="dark" variant="dark">
+      <b-navbar-brand href="#">
+        <img src="Icon-60.JPG" class="d-inline-block align-top" alt="Bitgarten">
+        Bitgarten</b-navbar-brand>
 
       <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
 
@@ -27,6 +29,7 @@
           <b-nav-item v-if="checked" to="/editor">Editor</b-nav-item>
         </b-navbar-nav>
         <b-navbar-nav class="ml-auto" right>
+          <b-nav-item v-on:click="refresh">Refresh</b-nav-item>
           <b-nav-item v-on:click="logout">Logout</b-nav-item>
         </b-navbar-nav>
       </b-collapse>
@@ -86,6 +89,11 @@ export default class Header extends Vue {
   }
   private getChecked() {
     return this.checked;
+  }
+  private refresh() {
+    console.log('Refresh image list');
+    store.commit('CLEAR', '');
+    location.reload();
   }
   private logout() {
     console.log('Call logout');

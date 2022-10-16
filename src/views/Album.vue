@@ -17,13 +17,20 @@
   <div class="home">
     <MyHeader></MyHeader>
     <AlbumView></AlbumView>
+    <b-alert show variant="dark">Copyright &copy; Thorsten Knieling und Familie 2018-2022</b-alert>
+
   </div>
 </template>
 
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
+import {
+  AlertPlugin,
+} from 'bootstrap-vue';
 import MyHeader from '@/components/Header.vue';
 import AlbumView from '@/components/AlbumView.vue';
+
+Vue.use(AlertPlugin);
 
 @Component({
   components: {
@@ -31,5 +38,5 @@ import AlbumView from '@/components/AlbumView.vue';
     AlbumView,
   },
 })
-export default class Home extends Vue {}
+export default class Home extends Vue { }
 </script>

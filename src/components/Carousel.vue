@@ -15,44 +15,18 @@
 
 <template>
   <div>
-    <b-alert show variant="success">
+    <b-alert show variant="dark">
       <h5 class="alert-heading">{{ albumTitle }}</h5>
     </b-alert>
-    <b-carousel
-      id="carousel-1"
-      :interval="interval"
-      controls
-      indicators
-      background="#ababab"
-      background-size:cover
-      style="text-shadow: 1px 1px 2px #333"
-      @sliding-start="onSlideStart"
-      ref="imageCarousel"
-    >
-      <b-carousel-slide
-        v-for="(r, index) in images"
-        v-bind:key="r.title"
-        :caption="r.title"
-        :text="albumTitle"
-      >
-        <div
-          v-if="r.MIMEType && r.MIMEType.startsWith('image/')"
-          :class="'image slot img-fluid ' + displayClass(r.width, r.height)"
-          slot="img"
-        >
-          <div
-            class="fillHeight"
-            :style="'background-image:url(' + r.pic + ')'"
-          ></div>
+    <b-carousel id="carousel-1" :interval="interval" controls indicators background="#ababab" background-size:cover
+      style="text-shadow: 1px 1px 2px #333" @sliding-start="onSlideStart" @sliding-end="onSlideEnd" ref="imageCarousel">
+      <b-carousel-slide v-for="(r, index) in images" v-bind:key="r.title" :caption="r.title" :text="albumTitle">
+        <div v-if="r.MIMEType && r.MIMEType.startsWith('image/')"
+          :class="'image slot img-fluid ' + displayClass(r.width, r.height)" slot="img">
+          <div class="fillHeight" :style="'background-image:url(' + r.pic + ')'"></div>
         </div>
         <div v-else class="image slot text-center vh-100" slot="img">
-          <video
-            center
-            controls
-            :ref="'video' + index"
-            :id="'video' + index"
-            class="fill"
-          >
+          <video center controls :ref="'video' + index" :id="'video' + index" class="fill">
             Your browser does not support the video tag.
           </video>
         </div>
@@ -83,6 +57,7 @@ Vue.use(EmbedPlugin);
 
 export default {
   extends: Vue,
+  name: 'Carousel',
   props: {
     id: {
       type: String,
@@ -104,17 +79,17 @@ export default {
       if (this.items) {
         this.items.forEach((i: any, index: number) => {
           // if (this.images[index].pic === '') {
-            const t = newVal.find((a: any) => a.md5 === i.src);
-            if (t) {
-              Vue.set(this.images, index, {
-                title: i.title,
-                fill: t.fill,
-                MIMEType: t.MIMEType,
-                height: t.height,
-                width: t.width,
-                pic: t.src,
-              });
-            }
+          const t = newVal.find((a: any) => a.md5 === i.src);
+          if (t) {
+            Vue.set(this.images, index, {
+              title: i.title,
+              fill: t.fill,
+              MIMEType: t.MIMEType,
+              height: t.height,
+              width: t.width,
+              pic: t.src,
+            });
+          }
           // }
         });
       }
@@ -132,6 +107,9 @@ export default {
   },
   methods: {
     onSlideStart(slide: any) {
+      console.log("Slide start "+slide)
+      this.stopSlide(slide-1);
+      this.stopSlide(slide+1);
       const image = this.images[slide];
       const vidElement = this.$refs['video' + slide];
       if (
@@ -152,9 +130,29 @@ export default {
       streamVideo(this.items[slide].src, vidElement[0]).then(() => {
         vidElement[0].onended = () => {
           this.$data.interval = 1000;
+          this.carousel.next();
         };
       });
     },
+    onSlideEnd(slide: any) {
+      console.log("Slide end "+slide)
+    },
+    stopSlide(slide: any) {
+      if (slide<0) {
+        return;
+      }
+      console.log("Slide stop "+slide);
+      const vidElement = this.$refs['video' + slide];
+      if (
+        vidElement &&
+        vidElement.length > 0 &&
+        this.items[slide].MIMEType === 'video/mp4'
+      ) {
+        vidElement[0].pause();
+        console.log("Paused video");
+        vidElement[0].src = " ";
+      }
+  },
     displayClass(width: number, height: number) {
       // console.log('w:'+width+' h:'+height);
       // if (height > width) {
@@ -213,14 +211,18 @@ export default {
 <style>
 .box {
   height: 100vh;
-  max-height: 75%; /* added */
+  max-height: 75%;
+  /* added */
   display: block;
 }
+
 video {
   height: 100%;
   width: auto;
-  max-height: 75%; /* added */
+  max-height: 75%;
+  /* added */
 }
+
 .fill {
   height: auto;
   width: 100%;
@@ -231,6 +233,7 @@ video {
   background-repeat: no-repeat;
   -o-background-size: cover;
 }
+
 .fillHeight {
   height: 100%;
   width: auto;

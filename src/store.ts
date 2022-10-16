@@ -171,6 +171,59 @@ export default new Vuex.Store({
                 // context.dispatch('LOAD_VIDEO', i.src);
               }
             }
+            // context.dispatch('LOAD_THUMB', i.msrc);
+            p.push(i);
+          });
+          const album = {
+            id: x.nr, Title: record.Title,
+            date: record.Date, pictures: p,
+          };
+          context.commit('ADD_ALBUM', album);
+        },
+          (error) => {
+            userService.logout();
+            location.reload();
+          });
+    },
+    LOAD_THUMBS: async (context, x) => {
+      if (!x.nr) {
+        console.log('Nr wrong' + x.nr);
+        return;
+      }
+
+      const getConfig = {
+        headers: authHeader('application/json'),
+        useCredentails: true,
+      };
+      console.log('Init thumbnails ' + x.nr);
+      await axios.get(`${config.Url()}/rest/map/Album/${x.nr}`,
+        getConfig).then((response) => {
+          if (response.status !== 200) {
+            console.log('Error loading album ' + x.nr + ':' + response.status);
+            if (response.status === 401 || response.status === 404) {
+              // auto logout if 401 response returned from api
+              userService.logout();
+              location.reload();
+            }
+
+            const error = response.statusText;
+            return Promise.reject(error);
+          }
+          // console.log('Loading album ' + x.nr);
+          const p: any[] = [];
+          const record = response.data.Records[0];
+          record.Pictures.forEach((element: any, index: number) => {
+            // console.log('Element: '+JSON.stringify(element));
+            const i = {
+              index: index + 1,
+              src: element.Md5,
+              msrc: element.Md5,
+              MIMEType: element.MIMEType,
+              fill: element.Fill,
+              w: element.Size.Width,
+              h: element.Size.Height,
+              title: element.Description,
+            };
             context.dispatch('LOAD_THUMB', i.msrc);
             p.push(i);
           });

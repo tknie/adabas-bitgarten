@@ -45,7 +45,7 @@
         <i>{{ data.value }}</i>
       </template>
       <template v-slot:cell(Thumbnail)="data">
-        <img :src="Thumbnail(data)" class="rounded" alt="ABC" />
+        <b-img :src="Thumbnail(data)" fluid rounded='true' alt="Loading..." />
       </template>
     </b-table>
   </div>
