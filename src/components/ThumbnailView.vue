@@ -43,17 +43,19 @@
       <b-alert show variant="dark">{{ selectedTitle() }}</b-alert>
       <b-container fluid class="bv-example-row mb-3">
         <b-modal centered size="xl" id="modal-image" title="Image" ok-only>
-          <b-img center fluid :src="currentPic" class="vh-100" />
-          <b-alert show class="text-center" variant="dark">{{
-          selectedDescription
-          }}</b-alert>
-          <b-alert class="w-50 pb-2 d-inline-block" size="sm" id="notice" show variant="danger">{{ selectedTitle() }}
-          </b-alert>
-          <b-alert class="w-50 pb-2 d-inline-block text-right" size="sm" id="download" show variant="danger">
-            <a :download="'custom-' + currentMd5 + '.jpg'" :href="currentPic" title="ImageName">
-              &gt;Download Bild&lt;
-            </a>
-          </b-alert>
+          <b-overlay :show="showPics">
+           <b-img center fluid :src="currentPic" class="vh-100" />
+            <b-alert show class="text-center" variant="dark">{{
+            selectedDescription
+            }}</b-alert>
+            <b-alert class="w-50 pb-2 d-inline-block" size="sm" id="notice" show variant="danger">{{ selectedTitle() }}
+            </b-alert>
+            <b-alert class="w-50 pb-2 d-inline-block text-right" size="sm" id="download" show variant="danger">
+              <a :download="'custom-' + currentMd5 + '.jpg'" :href="currentPic" title="ImageName">
+                &gt;Download Bild&lt;
+              </a>
+            </b-alert>
+          </b-overlay>
         </b-modal>
         <b-modal centered size="xl" id="modal-video" title="Video" ok-only><video center controls ref="videoOut"
             id="videoId" class="vh-100 fillHeight">
@@ -91,6 +93,7 @@ import {
   FormGroupPlugin,
   ButtonPlugin,
   LayoutPlugin,
+  OverlayPlugin,
 } from 'bootstrap-vue';
 import store from '../store';
 import { image, streamVideo } from '../images';
@@ -109,6 +112,7 @@ Vue.use(AlertPlugin);
 Vue.use(CardPlugin);
 Vue.use(LayoutPlugin);
 Vue.use(ButtonPlugin);
+Vue.use(OverlayPlugin);
 
 @Component({
   components: {
@@ -119,6 +123,7 @@ export default class ThumbnailView extends Vue {
   @Prop(String) private readonly id: string | undefined;
   public data() {
     return {
+      showPics: true,
       Album: {
         Date: 0,
         Directory: '',
@@ -161,6 +166,7 @@ export default class ThumbnailView extends Vue {
     if (entry) {
       // console.log('Found: <'+entry.md5+'>')
       this.$data.currentPic = entry.src;
+      this.$data.showPics = false;
     }
   }
   public created() {
@@ -252,6 +258,7 @@ export default class ThumbnailView extends Vue {
   }
   private loadImage(data: any) {
     // console.log('Load Image ' + data);
+    this.$data.showPics = true;
     this.$data.currentMd5 = data;
     const p = this.$data.Album.Pictures.find((x: any) => x.Md5 === data);
     this.$data.selectedDescription = p.Description;
@@ -259,6 +266,7 @@ export default class ThumbnailView extends Vue {
     const i = store.getters.getImageByMd5(data);
     if (i) {
       this.$data.currentPic = i.src;
+      this.$data.showPics = false;
       // console.log('Found Image ' + data);
       return i.src;
     }

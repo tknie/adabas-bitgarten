@@ -17,7 +17,7 @@
   <div class="editView">
     <div>
       <div>
-        <b-alert show variant="success">
+        <b-alert show variant="dark">
           <h5 class="alert-heading">Editing ...</h5>
         </b-alert>
       </div>
@@ -315,7 +315,7 @@ public  refreshAlbums() {
     } else {
       console.log('FAIL: ' + this.$data.selectedItem);
     }
-    store.dispatch('INIT_ALBUM', {
+    store.dispatch('LOAD_THUMBS', {
       nr: this.$data.selectedItem,
       loadImage: false,
     });
@@ -370,7 +370,7 @@ public  refreshAlbums() {
     this.$data.Album.Metadata.Thumbnail = this.$data.Album.Pictures[0].Md5;
     albums.updateAlbums(this.$data.Isn, this.$data.Album);
     store.commit('CLEAR', '');
-    store.dispatch('INIT_ALBUM', { nr: this.$data.Isn, loadImage: false });
+    store.dispatch('LOAD_THUMBS', { nr: this.$data.Isn, loadImage: false });
   }
   private onReset(evt: any) {
     evt.preventDefault();

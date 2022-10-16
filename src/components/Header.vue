@@ -15,7 +15,7 @@
 
 <template>
   <div class="header">
-    <b-navbar toggleable="lg" type="dark" variant="dark">
+    <b-navbar toggleable="lg" type="dark" variant="dark" sticky="true" fixed="top">
       <b-navbar-brand href="#">
         <img src="Icon-60.JPG" class="d-inline-block align-top" alt="Bitgarten">
         Bitgarten</b-navbar-brand>
