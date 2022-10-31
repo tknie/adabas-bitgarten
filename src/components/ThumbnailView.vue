@@ -27,12 +27,12 @@
           <option value="null">Bitte Album auswählen</option>
           <option v-for="(item, index) in items" :key="item.DateTime" :value="index + 1">
             {{
-            index +
-            1 +
-            ". " +
-            item.Title +
-            " - " +
-            new Date(item.DateTime * 1000).toUTCString()
+                index +
+                1 +
+                ". " +
+                item.Title +
+                " - " +
+                new Date(item.DateTime * 1000).toUTCString()
             }}
           </option>
         </b-form-select>
@@ -42,11 +42,15 @@
     <div>
       <b-alert show variant="dark">{{ selectedTitle() }}</b-alert>
       <b-container fluid class="bv-example-row mb-3">
-        <b-modal centered size="xl" id="modal-image" title="Image" ok-only>
+        <b-modal centered size="xl" id="modal-image" :title="(selectedPic + 1) + '. Bild ' + currentMd5" ok-only>
           <b-overlay :show="showPics">
-           <b-img center fluid :src="currentPic" class="vh-100" />
+            <p class="h1 mb-2">
+              <b-icon v-on:click="prevImage()" icon="caret-left-fill" variant="success"></b-icon>
+              <b-icon v-on:click="nextImage()" icon="caret-right-fill" variant="success"></b-icon>
+            </p>
+            <b-img center fluid :src="currentPic" />
             <b-alert show class="text-center" variant="dark">{{
-            selectedDescription
+                selectedDescription
             }}</b-alert>
             <b-alert class="w-50 pb-2 d-inline-block" size="sm" id="notice" show variant="danger">{{ selectedTitle() }}
             </b-alert>
@@ -57,10 +61,15 @@
             </b-alert>
           </b-overlay>
         </b-modal>
-        <b-modal centered size="xl" id="modal-video" title="Video" ok-only><video center controls ref="videoOut"
-            id="videoId" class="vh-100 fillHeight">
+        <b-modal centered size="xl" id="modal-video" title="Video" ok-only>
+          <p class="h1 mb-2">
+            <b-icon v-on:click="prevImage()" icon="caret-left-fill" variant="success"></b-icon>
+            <b-icon v-on:click="nextImage()" icon="caret-right-fill" variant="success"></b-icon>
+          </p>
+          <video center controls ref="videoOut" id="videoId" class="vh-100 fillHeight">
             Your browser does not support the video tag.
-          </video></b-modal>
+          </video>
+        </b-modal>
         <b-row align-h="around">
           <div v-for="(p, index) in Album.Pictures" v-bind:key="p.Md5">
             <b-col align-v="center" style="display: inline-block">
@@ -93,7 +102,7 @@ import {
   FormGroupPlugin,
   ButtonPlugin,
   LayoutPlugin,
-  OverlayPlugin,
+  OverlayPlugin, IconsPlugin,
 } from 'bootstrap-vue';
 import store from '../store';
 import { image, streamVideo } from '../images';
@@ -113,6 +122,7 @@ Vue.use(CardPlugin);
 Vue.use(LayoutPlugin);
 Vue.use(ButtonPlugin);
 Vue.use(OverlayPlugin);
+Vue.use(IconsPlugin);
 
 @Component({
   components: {
@@ -136,6 +146,7 @@ export default class ThumbnailView extends Vue {
         Pictures: [],
       },
       pictures: [],
+      selectedPic: 1,
       a: store.state.albumsData,
       images: store.state.images,
       items: store.state.albums,
@@ -164,7 +175,7 @@ export default class ThumbnailView extends Vue {
       console.log('MD5: <'+e.md5+'> check <'+this.$data.currentMd5+'>'+(e.md5 === this.$data.currentMd5));
     });*/
     if (entry) {
-      // console.log('Found: <'+entry.md5+'>')
+      // console.log('Change pic selected '+this.$data.selectedPic)
       this.$data.currentPic = entry.src;
       this.$data.showPics = false;
     }
@@ -260,19 +271,61 @@ export default class ThumbnailView extends Vue {
     // console.log('Load Image ' + data);
     this.$data.showPics = true;
     this.$data.currentMd5 = data;
-    const p = this.$data.Album.Pictures.find((x: any) => x.Md5 === data);
+    this.$data.selectedPic = this.$data.Album.Pictures.findIndex((x: any) => x.Md5 === data);
+    // console.log('Load pic selected '+this.$data.selectedPic)
+    const p = this.$data.Album.Pictures[this.$data.selectedPic];
+    if (p.MIMEType.startsWith('video')) {
+      this.$bvModal.hide('modal-image')
+      this.$bvModal.show('modal-video');
+      this.loadVideo(data);
+      return;
+    }
     this.$data.selectedDescription = p.Description;
     store.dispatch('LOAD_IMAGE', data);
     const i = store.getters.getImageByMd5(data);
     if (i) {
       this.$data.currentPic = i.src;
       this.$data.showPics = false;
-      // console.log('Found Image ' + data);
       return i.src;
     }
+    // console.log('Not found Image ' + data+' '+this.$data.selectedPic);
     return '';
   }
+  private prevImage() {
+    // console.log('Prev Image '+this.$data.selectedPic);
+    if (this.$data.selectedPic < 1) {
+      return
+    }
+    var p = this.$data.Album.Pictures[this.$data.selectedPic - 1];
+    if (p.MIMEType.startsWith('video')) {
+      this.$bvModal.hide('modal-image')
+      this.$bvModal.show('modal-video');
+      this.loadVideo(p.Md5);
+      return;
+    }
+    this.$bvModal.hide('modal-video')
+    this.$bvModal.show('modal-image');
+    this.loadImage(p.Md5);
+  }
+  private nextImage() {
+    // console.log('Next Image '+this.$data.selectedPic+' of '+this.$data.Album.Pictures.length);
+    if (this.$data.Album.Pictures.length - 1 < this.$data.selectedPic) {
+      return;
+    }
+    // console.log('load next Image '+this.$data.Album.Pictures[this.$data.selectedPic+1].Md5);
+    var p = this.$data.Album.Pictures[this.$data.selectedPic + 1];
+    if (p.MIMEType.startsWith('video')) {
+      this.$bvModal.hide('modal-image')
+      this.$bvModal.show('modal-video');
+      this.loadVideo(p.Md5);
+      return;
+    }
+    this.$bvModal.hide('modal-video')
+    this.$bvModal.show('modal-image');
+    this.loadImage(p.Md5);
+  }
   private loadVideo(data: any) {
+    this.$data.selectedPic = this.$data.Album.Pictures.findIndex((x: any) => x.Md5 === data);
     // console.log('Stream Video ' + data);
     const interval = setInterval(() => {
       if (this.$refs.videoOut) {
